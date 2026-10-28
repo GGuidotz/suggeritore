@@ -221,7 +221,8 @@ enum Prompting {
         guard words.count > max else { return text }
         var kept = Array(words.prefix(max))
         // Meglio fermarsi su una virgola o un punto negli ultimi pezzi, se c'è.
-        if let i = kept.lastIndex(where: { $0.last.map { ",.;:!?".contains($0) } ?? false }), i >= max / 2 {
+        let closers: Set<Character> = [",", ".", ";", ":", "!", "?"]
+        if let i = kept.lastIndex(where: { word in word.last.map { closers.contains($0) } == true }), i >= max / 2 {
             kept = Array(kept.prefix(i + 1))
         }
         return kept.joined()

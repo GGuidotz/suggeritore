@@ -31,7 +31,7 @@ enum KeyDecision { case pass, swallow }
 @MainActor
 final class KeyMonitor {
     /// Il marchio dei tasti che scriviamo noi, nel campo userData degli eventi.
-    static let ownEventMarker: Int64 = 0x5347_5249
+    nonisolated static let ownEventMarker: Int64 = 0x5347_5249
 
     var onKeyDown: (@MainActor (KeyStroke) -> KeyDecision)?
     var onMouseDown: (@MainActor () -> Void)?

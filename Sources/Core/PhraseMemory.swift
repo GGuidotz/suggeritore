@@ -37,11 +37,17 @@ final class PhraseMemory {
         let words = TextTokens.lastWords(text, Self.keyWords)
         guard words.count == Self.keyWords else { return nil }
         guard let candidates = table[words.joined(separator: " ")] else { return nil }
-        let best = candidates.filter { $0.value.count >= Self.minCount }
-            .max { a, b in a.value.count == b.value.count ? a.value.last < b.value.last : a.value.count < b.value.count }
-        guard let best else { return nil }
+        var bestText: String?
+        var bestEntry: Entry?
+        for (continuation, entry) in candidates where entry.count >= Self.minCount {
+            guard let current = bestEntry else { bestText = continuation; bestEntry = entry; continue }
+            let better = entry.count > current.count || (entry.count == current.count && entry.last > current.last)
+            if better { bestText = continuation; bestEntry = entry }
+        }
+        guard let bestText else { return nil }
         // Il seguito è salvato con lo spazio iniziale; se il testo finisce già con uno spazio, lo si toglie.
-        return text.last?.isWhitespace == true ? String(best.key.drop(while: { $0 == " " })) : best.key
+        if text.last?.isWhitespace == true { return String(bestText.drop(while: { $0 == " " })) }
+        return bestText
     }
 
     /// Impara un seguito accettato dopo `text`.
@@ -79,10 +85,22 @@ final class PhraseMemory {
     private func prune() {
         guard table.count > Self.maxKeys else { return }
         // Via le chiavi meno usate e più vecchie.
-        let ranked = table.map { key, value -> (String, Int, Date) in
-            (key, value.values.reduce(0) { $0 + $1.count }, value.values.map(\.last).max() ?? .distantPast)
-        }.sorted { a, b in a.1 == b.1 ? a.2 < b.2 : a.1 < b.1 }
-        for (key, _, _) in ranked.prefix(table.count - Self.maxKeys) { table[key] = nil }
+        struct Rank { let key: String; let count: Int; let last: Date }
+        var ranked: [Rank] = []
+        for (key, continuations) in table {
+            var count = 0
+            var last = Date.distantPast
+            for entry in continuations.values {
+                count += entry.count
+                if entry.last > last { last = entry.last }
+            }
+            ranked.append(Rank(key: key, count: count, last: last))
+        }
+        ranked.sort { a, b in
+            if a.count != b.count { return a.count < b.count }
+            return a.last < b.last
+        }
+        for rank in ranked.prefix(table.count - Self.maxKeys) { table[rank.key] = nil }
     }
 
     private func scheduleSave() {
