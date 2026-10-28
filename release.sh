@@ -16,6 +16,7 @@ CASK=packaging/homebrew/Casks/typewithme.rb
 
 command -v gh >/dev/null || die "Serve GitHub CLI: brew install gh && gh auth login"
 [ -z "$(git status --porcelain -- .)" ] || die "Ci sono modifiche non salvate in git: fai prima il commit."
+[ "$(git branch --show-current)" = main ] || die "Il rilascio parte da main: git checkout main && git pull."
 gh release view "v$VERSION" --repo "$APP_REPO" >/dev/null 2>&1 && die "La release v$VERSION esiste già: aumenta VERSION."
 
 ./build.sh --dmg
@@ -45,6 +46,16 @@ if [ -d "$TAP_DIR/.git" ]; then
   git -C "$TAP_DIR" pull --ff-only
   mkdir -p "$TAP_DIR/Casks"
   cp "$CASK" "$TAP_DIR/Casks/typewithme.rb"
+  # Al primo rilascio la riga di Type_w/Me nella tabella del README del tap, dopo l'ultima.
+  if [ -f "$TAP_DIR/README.md" ] && ! grep -q '`typewithme`' "$TAP_DIR/README.md"; then
+    ROW='| `typewithme` | [Type_w/Me](https://github.com/GGuidotz/typewithme): il seguito di ciò che scrivi, in grigio, in qualunque app, con modelli che girano sul Mac |'
+    LAST=$(grep -n '^| `' "$TAP_DIR/README.md" | tail -n 1 | cut -d: -f1)
+    if [ -n "$LAST" ]; then
+      awk -v row="$ROW" -v last="$LAST" '{ print } NR == last { print row }' "$TAP_DIR/README.md" > "$TAP_DIR/README.md.new"
+      mv "$TAP_DIR/README.md.new" "$TAP_DIR/README.md"
+      git -C "$TAP_DIR" add README.md
+    fi
+  fi
   git -C "$TAP_DIR" add Casks/typewithme.rb
   git -C "$TAP_DIR" commit -m "typewithme $VERSION" >/dev/null
   git -C "$TAP_DIR" push
