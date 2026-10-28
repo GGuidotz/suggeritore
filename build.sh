@@ -150,7 +150,13 @@ if [ "${TYPEWITHME_LLAMA:-}" != none ]; then
   fi
   if [ -n "$LLAMA_TAG" ] && [ -x "$LLAMA_CACHE/llama-server" ]; then
     mkdir -p "$APP/Contents/Helpers/llama"
-    cp -P "$LLAMA_CACHE"/* "$APP/Contents/Helpers/llama/"
+    # In Helpers solo codice firmato: un file di testo lì fa fallire la firma dell'app. La licenza va in Resources.
+    for f in "$LLAMA_CACHE"/*; do
+      case "$f" in
+        */LICENSE*) cp "$f" "$APP/Contents/Resources/LICENSE-llama.cpp" ;;
+        *) cp -P "$f" "$APP/Contents/Helpers/llama/" ;;
+      esac
+    done
     plist_set SGRLlamaTag "$LLAMA_TAG"
   else
     echo "llama-server non incluso (release di llama.cpp non scaricata): l'app userà quello di Homebrew."
