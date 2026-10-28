@@ -50,6 +50,9 @@ final class Preferences: ObservableObject {
     /// Il modello di Gemma scelto (ModelCatalog) e quelli aggiunti da chi usa l'app.
     @Published var selectedModelID: String { didSet { defaults.set(selectedModelID, forKey: "selectedModelID") } }
     @Published var customModels: [ModelEntry] { didSet { save(customModels, "customModels") } }
+    /// Il modello resta caricato finché l'app è aperta (alla corrente): il primo suggerimento dopo una pausa non aspetta
+    /// l'avvio del server. Spento: il server si spegne dopo `llamaIdleMinutes`.
+    @Published var keepModelLoaded: Bool { didSet { defaults.set(keepModelLoaded, forKey: "keepModelLoaded") } }
     /// Minuti senza richieste prima di spegnere il server di llama.cpp.
     @Published var llamaIdleMinutes: Double { didSet { defaults.set(llamaIdleMinutes, forKey: "llamaIdleMinutes") } }
     /// Se Ollama è aperto e ha il modello, si usa lui invece di avviare llama-server.
@@ -82,7 +85,14 @@ final class Preferences: ObservableObject {
         let old: EngineChoice? = load("engine", Optional<EngineChoice>.none)
         engine = load("engineChoice", old == .rulesOnly ? EngineChoice.rulesOnly : EngineChoice.auto)
         length = load("length", SuggestionLength.medium)
-        delay = d.object(forKey: "delay") as? Double ?? 0.35
+        // Dalla 0.3.0 la pausa predefinita è 120 ms: la richiesta si annulla comunque se riprendi a scrivere. Chi
+        // aveva il vecchio predefinito (350 ms) passa al nuovo una volta sola.
+        var savedDelay = d.object(forKey: "delay") as? Double
+        if !d.bool(forKey: "delayDefault030") {
+            d.set(true, forKey: "delayDefault030")
+            if let old = savedDelay, abs(old - 0.35) < 0.001 { savedDelay = nil; d.removeObject(forKey: "delay") }
+        }
+        delay = savedDelay ?? 0.12
         acceptWord = load("acceptWord", KeyBinding.tab)
         acceptAll = load("acceptAll", KeyBinding.shiftTab)
         dismiss = load("dismiss", KeyBinding.escape)
@@ -99,6 +109,7 @@ final class Preferences: ObservableObject {
         appInstructions = load("appInstructions", [String: String]())
         selectedModelID = d.string(forKey: "selectedModelID") ?? ModelCatalog.defaultID
         customModels = load("customModels", [ModelEntry]())
+        keepModelLoaded = d.object(forKey: "keepModelLoaded") as? Bool ?? true
         llamaIdleMinutes = d.object(forKey: "llamaIdleMinutes") as? Double ?? 10
         useOllama = d.object(forKey: "useOllama") as? Bool ?? true
         llamaServerPath = d.string(forKey: "llamaServerPath")

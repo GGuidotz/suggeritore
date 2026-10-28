@@ -120,7 +120,6 @@
 "Il seguito di quello che scrivi, in ogni app del Mac." = "What you are about to write, in every Mac app.";
 "Il server di Gemma ha risposto con un errore (%d)." = "The Gemma server answered with an error (%d).";
 "Il server di Gemma ha risposto con un errore." = "The Gemma server answered with an error.";
-"Il server gira solo sul Mac (127.0.0.1) e parte alla prima richiesta: la prima volta scarica il modello nella cache di llama.cpp, poi si avvia in pochi secondi. Dopo i minuti scelti senza richieste si spegne da solo, e si chiude con Suggeritore. Se Ollama è aperto e ha già il modello, si usa quello." = "The server runs only on your Mac (127.0.0.1) and starts with the first request: the first time it downloads the model into the llama.cpp cache, then it starts in a few seconds. After the chosen minutes without requests it stops by itself, and it quits with Suggeritore. If Ollama is open and already has the model, that is used.";
 "Il suggerimento arriva dopo una pausa nella scrittura. A metà riga il seguito deve raccordarsi con il testo che c'è dopo il cursore: funziona, ma non sempre bene." = "The suggestion comes after a pause in your typing. Mid-line, the continuation has to join the text after the cursor: it works, but not always well.";
 "Il Terminale non ha eseguito il comando: copialo e incollalo tu. (%@)" = "Terminal did not run the command: copy and paste it yourself. (%@)";
 "Impostazioni di Suggeritore" = "Suggeritore Settings";
@@ -294,3 +293,5 @@
 "Versione installata" = "Installed version";
 "via Ollama" = "via Ollama";
 "Vuoto: lo cerca in /opt/homebrew/bin e /usr/local/bin" = "Empty: looked up in /opt/homebrew/bin and /usr/local/bin";
+"Il server gira solo sul Mac (127.0.0.1). Con \"Tieni il modello pronto\" parte con l'app e resta caricato (circa 1 GB di memoria con Gemma 3 1B), così il primo suggerimento dopo una pausa arriva subito; altrimenti parte alla prima richiesta e si spegne dopo i minuti scelti. La prima volta scarica il modello nella cache di llama.cpp. Se Ollama è aperto e ha già il modello, si usa quello." = "The server runs only on your Mac (127.0.0.1). With \"Keep the model ready\" it starts with the app and stays loaded (about 1 GB of memory with Gemma 3 1B), so the first suggestion after a break arrives right away; otherwise it starts with the first request and stops after the chosen minutes. The first time it downloads the model into the llama.cpp cache. If Ollama is open and already has the model, that is used.";
+"Tieni il modello pronto" = "Keep the model ready";

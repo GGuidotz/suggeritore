@@ -212,7 +212,7 @@ private struct SuggestionSettings: View {
                 Footnote(prefs.length.detail)
                 LabeledContent(L("Aspetta prima di suggerire")) {
                     HStack(spacing: 10) {
-                        Slider(value: $prefs.delay, in: 0.15...1.5, step: 0.05)
+                        Slider(value: $prefs.delay, in: 0.05...1.0, step: 0.01)
                             .frame(width: 180)
                             .accessibilityLabel(L("Aspetta prima di suggerire"))
                             .accessibilityValue(L("%d ms", Int(prefs.delay * 1000)))

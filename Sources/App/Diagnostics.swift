@@ -129,6 +129,8 @@ enum DiagnosticsReport {
         } else {
             row("Average response", "none yet")
         }
+        row("Latency", completer.latencySummary ?? "none yet")
+        row("Keep model loaded", yesNo(prefs.keepModelLoaded))
         row("Status", "\(completer.status)")
         if let error = completer.lastError { row("Last model error", error) }
         for line in llama.recentLog { row("Server log", line) }

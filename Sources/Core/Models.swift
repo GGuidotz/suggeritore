@@ -49,6 +49,36 @@ struct TextContext: Equatable {
         copy.before = cut
         return copy
     }
+
+    /// Come `limited(to:)`, ma con l'inizio ancorato a posizioni fisse del documento (multipli di `step`, in unità
+    /// UTF-16 come il cursore): mentre scrivi l'inizio del testo mandato al modello resta lo stesso per centinaia di
+    /// tasti, così llama.cpp riusa il prompt già elaborato invece di rifarlo a ogni richiesta. Tra `max - step` e
+    /// `max` unità. `caret` è la posizione del cursore nel campo; `before` deve finire lì.
+    func anchored(caret: Int, max: Int, step: Int = 256) -> TextContext {
+        let units = before.utf16
+        guard max > step, step > 0, caret >= units.count, units.count > max - step else { return self }
+        let readStart = caret - units.count
+        // Il primo multiplo di `step` da cui restano al massimo `max` unità fino al cursore.
+        let lowest = caret - max
+        let anchor = lowest <= 0 ? 0 : ((lowest + step - 1) / step) * step
+        let drop = anchor - readStart
+        guard drop > 0 else { return self }
+        var index = units.index(units.startIndex, offsetBy: drop)
+        // Mai a metà di un carattere fatto di due unità.
+        while index < units.endIndex, String.Index(index, within: before) == nil { index = units.index(after: index) }
+        guard let start = String.Index(index, within: before) else { return self }
+        var cut = String(before[start...])
+        // Via il pezzo di parola tagliato all'inizio (deterministico: stesso inizio, stesso taglio).
+        let previous = before[..<start].last
+        let atBoundary = previous.map { $0.isWhitespace || $0.isNewline } ?? true
+        if !atBoundary, let space = cut.firstIndex(where: { $0.isWhitespace || $0.isNewline }) {
+            let rest = cut[cut.index(after: space)...]
+            if !rest.isEmpty { cut = String(rest) }
+        }
+        var copy = self
+        copy.before = cut
+        return copy
+    }
 }
 
 /// Quanto lungo deve essere un suggerimento.

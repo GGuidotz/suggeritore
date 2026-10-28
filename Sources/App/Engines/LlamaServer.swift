@@ -261,7 +261,9 @@ final class LlamaServer: ObservableObject {
         // Da verificare sul Mac con la versione di Homebrew: --no-webui e --cache-reuse ci sono nelle versioni del
         // 2025; se llama-server li rifiuta, il tentativo dopo parte senza.
         var arguments = ["--host", "127.0.0.1", "--port", "\(port)"] + source + ["-c", "2048", "-ngl", "99"]
-        if !minimalArguments { arguments += ["--no-webui", "--cache-reuse", "256"] }
+        // Un solo slot: ogni richiesta trova la cache del prompt di quella prima. --swa-full: Gemma 3 usa
+        // l'attenzione a finestra scorrevole e senza una cache piena llama.cpp rifà tutto il prompt a ogni richiesta.
+        if !minimalArguments { arguments += ["--no-webui", "--cache-reuse", "256", "-np", "1", "--swa-full"] }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: path)
         p.arguments = arguments
@@ -386,11 +388,16 @@ final class LlamaServer: ObservableObject {
     }
 
     private func checkIdle() {
+        // Modello sempre pronto: si spegne solo con l'app (o a batteria, se chi usa l'app lo chiede).
+        if prefs.keepModelLoaded, !shouldSaveEnergy { return }
         let idle = Date().timeIntervalSince(lastUse)
         guard idle > max(1, prefs.llamaIdleMinutes) * 60 else { return }
         diag(.engine, "gemma stopped after \(Int(idle / 60)) idle minutes")
         stop()
     }
+
+    /// Vero quando conviene non tenere il modello in memoria senza motivo. Per ora mai; la modalità batteria lo usa.
+    var shouldSaveEnergy: Bool { false }
 
     // MARK: - Registro
 

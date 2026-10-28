@@ -7,11 +7,34 @@
 
 import Foundation
 
+/// I tempi che llama-server mette nell'ultimo pezzo della risposta ("timings"): quanti token di prompt ha elaborato,
+/// quanti ha ripreso dalla cache e quanto ci ha messo. Solo numeri, per la diagnostica.
+struct LlamaTimings: Equatable, Sendable {
+    var promptTokens: Int
+    var cachedTokens: Int?
+    var promptMs: Double
+    var predictedTokens: Int
+    var predictedMs: Double
+
+    init?(_ chunk: [String: Any]) {
+        guard let t = chunk["timings"] as? [String: Any] else { return nil }
+        func number(_ key: String) -> Double? { (t[key] as? NSNumber)?.doubleValue }
+        guard let promptN = number("prompt_n"), let promptMs = number("prompt_ms") else { return nil }
+        promptTokens = Int(promptN)
+        self.promptMs = promptMs
+        predictedTokens = Int(number("predicted_n") ?? 0)
+        predictedMs = number("predicted_ms") ?? 0
+        if let cache = number("cache_n") { cachedTokens = Int(cache) }
+        else if let cached = (chunk["tokens_cached"] as? NSNumber)?.intValue { cachedTokens = Swift.max(0, cached - promptTokens) }
+    }
+}
+
 final class LlamaEngine: CompletionEngine, @unchecked Sendable {
     let kind = EngineKind.gemma
     let displayName: String
-    /// Gemma ha una finestra ampia (il server parte con 2048 token): i 2000 caratteri letti dal campo ci stanno.
-    let contextLimit = TextContext.maxBefore
+    /// Circa 1.200 caratteri (300-400 token): abbastanza per il tono e il filo del discorso, pochi da rielaborare
+    /// quando la cache del prompt non basta. Il server parte con 2048 token.
+    let contextLimit = 1200
     let baseURL: URL
     /// Il campo "model" della richiesta: per Ollama il nome del modello, per llama-server è indifferente.
     let model: String
@@ -19,6 +42,15 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
     let rawCompletion: Bool
 
     var unavailableReason: String? { nil }
+
+    private let lock = NSLock()
+    private var timings: LlamaTimings?
+    /// I tempi dell'ultima risposta arrivata fino in fondo, se il server li ha dati.
+    var lastTimings: LlamaTimings? { lock.withLock { timings } }
+    private func note(_ chunk: [String: Any]) {
+        guard let t = LlamaTimings(chunk) else { return }
+        lock.withLock { timings = t }
+    }
 
     init(baseURL: URL, model: String, displayName: String, rawCompletion: Bool = false) {
         self.baseURL = baseURL
@@ -28,6 +60,7 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
     }
 
     func complete(_ request: CompletionRequest, partial: @escaping @Sendable (String) -> Void) async throws -> String {
+        lock.withLock { timings = nil }
         if rawCompletion { return try await completeRaw(request, partial: partial) }
         let body = Self.body(model: model, system: Prompting.completionInstructions(request),
                              user: Prompting.completionPrompt(request), maxTokens: request.length.maxTokens,
@@ -40,6 +73,7 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
             let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
             if payload == "[DONE]" { break }
             if let message = Self.errorMessage(payload) { throw EngineError(message) }
+            if payload.contains("\"timings\""), let chunk = Self.parse(payload) { note(chunk) }
             guard let piece = Self.content(payload), !piece.isEmpty else { continue }
             text += piece
             partial(text)
@@ -75,6 +109,7 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
             if payload == "[DONE]" { break }
             if let message = Self.errorMessage(payload) { throw EngineError(message) }
             guard let chunk = Self.parse(payload) else { continue }
+            note(chunk)
             if let piece = chunk["content"] as? String, !piece.isEmpty {
                 text += piece
                 partial(text)
@@ -123,6 +158,7 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
         object["max_tokens"] = maxTokens
         object["temperature"] = temperature
         object["stream"] = stream
+        object["cache_prompt"] = true   // llama-server: riusa il prompt già elaborato (Ollama ignora il campo)
         return (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
     }
 

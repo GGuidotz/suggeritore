@@ -80,16 +80,19 @@ private struct GemmaServerSection: View {
                 if llama.state.isBusy { ProgressView().controlSize(.small) }
             }
             Toggle(L("Usa Ollama se è aperto"), isOn: $prefs.useOllama)
-            LabeledContent(L("Spegni dopo")) {
-                Stepper(value: $prefs.llamaIdleMinutes, in: 1...120, step: 1) {
-                    Text(L("%d minuti senza richieste", Int(prefs.llamaIdleMinutes))).monospacedDigit()
+            Toggle(L("Tieni il modello pronto"), isOn: $prefs.keepModelLoaded)
+            if !prefs.keepModelLoaded {
+                LabeledContent(L("Spegni dopo")) {
+                    Stepper(value: $prefs.llamaIdleMinutes, in: 1...120, step: 1) {
+                        Text(L("%d minuti senza richieste", Int(prefs.llamaIdleMinutes))).monospacedDigit()
+                    }
                 }
             }
             ServerPathField(prefs: prefs)
         } header: {
             Text(verbatim: "Gemma (llama.cpp)")
         } footer: {
-            Footnote(L("Il server gira solo sul Mac (127.0.0.1) e parte alla prima richiesta: la prima volta scarica il modello nella cache di llama.cpp, poi si avvia in pochi secondi. Dopo i minuti scelti senza richieste si spegne da solo, e si chiude con Suggeritore. Se Ollama è aperto e ha già il modello, si usa quello."))
+            Footnote(L("Il server gira solo sul Mac (127.0.0.1). Con \"Tieni il modello pronto\" parte con l'app e resta caricato (circa 1 GB di memoria con Gemma 3 1B), così il primo suggerimento dopo una pausa arriva subito; altrimenti parte alla prima richiesta e si spegne dopo i minuti scelti. La prima volta scarica il modello nella cache di llama.cpp. Se Ollama è aperto e ha già il modello, si usa quello."))
         }
     }
 

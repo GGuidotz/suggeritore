@@ -40,6 +40,20 @@ final class Completer: ObservableObject {
     /// Quanto ha messo il modello a rispondere, in secondi, nelle ultime 20 richieste.
     @Published private(set) var responseTimes: [Double] = []
 
+    /// I tempi di una richiesta al modello, per la diagnostica: solo numeri.
+    struct Latency {
+        /// Lettura del campo con l'Accessibilità, in millisecondi.
+        var readMs: Double
+        /// Dalla richiesta al primo testo grigio sullo schermo; nil se non è comparso prima della fine.
+        var firstMs: Double?
+        /// Dalla richiesta alla risposta completa.
+        var totalMs: Double
+        /// Token di prompt elaborati e ripresi dalla cache, se il motore li dà (llama-server).
+        var timings: LlamaTimings?
+    }
+    /// Le ultime 30 richieste andate a buon fine.
+    private(set) var latencies: [Latency] = []
+
     let prefs: Preferences
     let apple = AppleEngine()
     let llama: LlamaServer
@@ -73,6 +87,9 @@ final class Completer: ObservableObject {
     private var ghostCaret: CGRect?
     private var ghostFont: NSFont?
     private var lastPartialAt = Date.distantPast
+    /// Quando è partita la richiesta in corso e quando è comparso il suo primo pezzo.
+    private var requestStartedAt = Date.distantPast
+    private var firstPieceMs: Double?
     private var bag = Set<AnyCancellable>()
 
     init(prefs: Preferences) {
@@ -102,14 +119,30 @@ final class Completer: ObservableObject {
         prefs.$engine.dropFirst().removeDuplicates().receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.engineChoiceChanged() }
             .store(in: &bag)
+        // Il modello pronto prima che serva: all'avvio, al risveglio del Mac e quando lo chiedi nelle impostazioni.
+        NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.preloadModel() }
+            .store(in: &bag)
+        prefs.$keepModelLoaded.dropFirst().removeDuplicates().receive(on: RunLoop.main)
+            .sink { [weak self] on in if on { self?.preloadModel() } }
+            .store(in: &bag)
         startMonitorIfPossible()
         appChanged()
         if prefs.useOllama { llama.refreshOllama() }
+        preloadModel()
         if preferredKind == .apple { apple.prewarm() }
         diag(.app, "completer started, tap \(monitor.isRunning ? "on" : "off")")
     }
 
+    /// Avvia Gemma in anticipo se deve restare pronto (e se è il motore scelto).
+    private func preloadModel() {
+        guard prefs.enabled, prefs.keepModelLoaded, preferredKind == .gemma, !llama.shouldSaveEnergy else { return }
+        if llama.state == .stopped { llama.start() }
+    }
+
     private func engineChoiceChanged() {
+        preloadModel()
         if preferredKind != .gemma, llama.state != .stopped { llama.stop() }
         if preferredKind == .apple { apple.prewarm() }
     }
@@ -182,6 +215,36 @@ final class Completer: ObservableObject {
     private func recordResponseTime(_ seconds: TimeInterval) {
         responseTimes.append(seconds)
         if responseTimes.count > 20 { responseTimes.removeFirst(responseTimes.count - 20) }
+    }
+
+    private func recordLatency(_ latency: Latency) {
+        latencies.append(latency)
+        if latencies.count > 30 { latencies.removeFirst(latencies.count - 30) }
+    }
+
+    /// Le mediane delle ultime richieste, in inglese, per il report: "read 12 ms, first 180 ms, …". nil se non ce ne sono.
+    var latencySummary: String? {
+        guard !latencies.isEmpty else { return nil }
+        func median(_ values: [Double]) -> Int? {
+            guard !values.isEmpty else { return nil }
+            let sorted = values.sorted()
+            return Int(sorted[sorted.count / 2].rounded())
+        }
+        var parts: [String] = []
+        if let read = median(latencies.map(\.readMs)) { parts.append("read \(read) ms") }
+        if let first = median(latencies.compactMap(\.firstMs)) { parts.append("first text \(first) ms") }
+        if let total = median(latencies.map(\.totalMs)) { parts.append("complete \(total) ms") }
+        let timings = latencies.compactMap(\.timings)
+        if let prompt = median(timings.map { Double($0.promptTokens) }),
+           let promptMs = median(timings.map(\.promptMs)) {
+            parts.append("prompt \(prompt) tokens in \(promptMs) ms")
+        }
+        if let cached = median(timings.compactMap { $0.cachedTokens.map(Double.init) }) {
+            parts.append("from cache \(cached) tokens")
+        }
+        let speeds = timings.filter { $0.predictedMs > 0 }.map { Double($0.predictedTokens) / $0.predictedMs * 1000 }
+        if let speed = median(speeds) { parts.append("\(speed) tokens/s") }
+        return parts.joined(separator: ", ") + " (median of \(latencies.count))"
     }
 
     /// I dati per la vista compatta (Sources/Island): stato, motore, conteggi.
@@ -272,6 +335,7 @@ final class Completer: ObservableObject {
                 let rest = String(suggestion.text.dropFirst(s.characters.count))
                 if rest.trimmingCharacters(in: .whitespaces).isEmpty {
                     finishSuggestion(learn: true)
+                    scheduleSuggestion()
                 } else {
                     self.suggestion = Suggestion(text: rest, source: suggestion.source)
                     reposition()
@@ -298,12 +362,14 @@ final class Completer: ObservableObject {
 
     // MARK: - Suggerire
 
-    private func scheduleSuggestion() {
+    /// Chiede un seguito dopo la pausa scelta, o dopo `delay` secondi (subito dopo un'accettazione: la cache del
+    /// prompt è calda e il testo nuovo è già nel campo).
+    private func scheduleSuggestion(delay override: Double? = nil) {
         debounceTask?.cancel()
         requestTask?.cancel()
         requestTask = nil
         generation += 1
-        let delay = prefs.delay
+        let delay = override ?? prefs.delay
         debounceTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(delay))
             guard !Task.isCancelled, let self else { return }
@@ -313,6 +379,7 @@ final class Completer: ObservableObject {
 
     private func produceSuggestion() {
         guard prefs.enabled, monitor.isRunning, !KeyMonitor.secureInputActive else { return }
+        let readBegan = Date()
         guard let field = FocusReader.focusedField(), !field.isSecure, field.selection.length == 0 else { return }
         guard !prefs.isExcluded(field.bundleID) else { return }
         if ignoreOwnProcess, field.pid == getpid() { return }
@@ -337,12 +404,18 @@ final class Completer: ObservableObject {
             return
         }
         guard let engine = activeEngine() else { refreshStatus(); return }
-        let request = CompletionRequest(context: context.limited(to: engine.contextLimit), length: prefs.length,
+        // Gemma: inizio del testo ancorato, così llama.cpp riusa il prompt già elaborato (Models.swift, anchored).
+        let limited = engine.kind == .gemma ? context.anchored(caret: field.caret, max: engine.contextLimit)
+                                            : context.limited(to: engine.contextLimit)
+        let request = CompletionRequest(context: limited, length: prefs.length,
                                         language: LanguageGuess.code(for: before), instructions: prefs.instructions,
                                         appInstructions: prefs.instruction(forApp: field.bundleID),
                                         clipboard: clipboardIfAllowed())
         let source: SuggestionSource = engine.kind == .gemma ? .gemma : .apple
         let started = Date()
+        let readMs = started.timeIntervalSince(readBegan) * 1000
+        requestStartedAt = started
+        firstPieceMs = nil
         // I pezzi arrivano da un thread qualunque: si torna sul main actor, in ordine.
         let partial: @Sendable (String) -> Void = { [weak self] text in
             DispatchQueue.main.async { [weak self] in
@@ -356,7 +429,10 @@ final class Completer: ObservableObject {
             self.requestTask = nil
             switch result {
             case .success(let raw):
-                self.recordResponseTime(Date().timeIntervalSince(started))
+                let elapsed = Date().timeIntervalSince(started)
+                self.recordResponseTime(elapsed)
+                self.recordLatency(Latency(readMs: readMs, firstMs: self.firstPieceMs ?? elapsed * 1000, totalMs: elapsed * 1000,
+                                           timings: (engine as? LlamaEngine)?.lastTimings))
                 self.finishStream(raw, request: request, field: field, context: context, source: source)
             case .failure(let error):
                 self.stats.modelFailures += 1
@@ -390,6 +466,7 @@ final class Completer: ObservableObject {
         lastPartialAt = now
         show(Suggestion(text: cleaned, source: source), field: current, context: context)
         streaming = true
+        firstPieceMs = now.timeIntervalSince(requestStartedAt) * 1000
     }
 
     /// La risposta intera: pulizia completa. Se il seguito era già sullo schermo si aggiorna lì, altrimenti appare ora.
@@ -484,6 +561,7 @@ final class Completer: ObservableObject {
         prefs.addAcceptedWords(1)
         if rest.trimmingCharacters(in: .whitespaces).isEmpty {
             finishSuggestion(learn: true)
+            scheduleSuggestion(delay: Self.afterAcceptDelay)
         } else {
             suggestion = Suggestion(text: rest, source: s.source)
             reposition(after: 80)   // il testo appena scritto deve arrivare all'app prima di rileggere il cursore
@@ -498,7 +576,11 @@ final class Completer: ObservableObject {
         noteAccepted()
         prefs.addAcceptedWords(s.words.count)
         finishSuggestion(learn: true)
+        scheduleSuggestion(delay: Self.afterAcceptDelay)
     }
+
+    /// Dopo un'accettazione il seguito dopo si chiede quasi subito: il tempo che il testo arrivi all'app.
+    private static let afterAcceptDelay = 0.08
 
     private func noteAccepted() {
         guard !acceptedCurrent else { return }
