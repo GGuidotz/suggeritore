@@ -92,7 +92,8 @@ final class LlamaServer: ObservableObject {
 
     // MARK: - Che cosa c'è
 
-    /// Il percorso di llama-server: quello scelto (un file o la cartella che lo contiene), altrimenti Homebrew.
+    /// Il percorso di llama-server: quello scelto (un file o la cartella che lo contiene), poi quello incluso nell'app,
+    /// poi Homebrew.
     static func findExecutable(custom: String?) -> String? {
         let fm = FileManager.default
         if let custom = custom?.trimmingCharacters(in: .whitespacesAndNewlines), !custom.isEmpty {
@@ -105,12 +106,26 @@ final class LlamaServer: ObservableObject {
                 return expanded
             }
         }
+        if let bundled = bundledExecutable { return bundled }
         for directory in Homebrew.binDirectories {
             let path = directory + "/llama-server"
             if fm.isExecutableFile(atPath: path) { return path }
         }
         return nil
     }
+
+    /// Il llama-server incluso nell'app (build.sh lo mette in Contents/Helpers/llama), solo su Apple silicon.
+    static var bundledExecutable: String? {
+        #if arch(arm64)
+        let path = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/llama/llama-server").path
+        return FileManager.default.isExecutableFile(atPath: path) ? path : nil
+        #else
+        return nil
+        #endif
+    }
+
+    /// La versione di llama.cpp inclusa nell'app ("b6500"), nil se non c'è.
+    static var bundledTag: String? { bundledExecutable == nil ? nil : Bundle.main.infoDictionary?["SGRLlamaTag"] as? String }
 
     /// Ricontrolla se llama.cpp è installato (dopo "Installa nel Terminale", a finestra aperta).
     func refreshInstalled() {

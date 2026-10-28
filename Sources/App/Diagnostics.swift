@@ -112,6 +112,7 @@ enum DiagnosticsReport {
         row("Apple Intelligence", AppleEngine.unavailableReason ?? "available")
         let customPath = prefs.llamaServerPath == nil ? "" : " (custom path set)"
         row("llama.cpp installed", yesNo(llama.isInstalled) + customPath)
+        row("llama.cpp bundled", LlamaServer.bundledTag ?? "no")
         var server = llama.state.diagnostic
         if let backend = llama.backend { server += " via " + backend.rawValue }
         row("Gemma server", server)

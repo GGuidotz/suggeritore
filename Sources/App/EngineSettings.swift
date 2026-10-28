@@ -58,7 +58,8 @@ private struct GemmaServerSection: View {
     var body: some View {
         Section {
             LabeledContent {
-                StateLabel(ok: llama.isInstalled, text: llama.isInstalled ? L("Installato") : L("Non installato"))
+                StateLabel(ok: llama.isInstalled, text: !llama.isInstalled ? L("Non installato")
+                           : LlamaServer.bundledTag.map { L("Incluso nell'app (%@)", $0) } ?? L("Installato"))
             } label: {
                 Text(verbatim: "llama.cpp")
             }

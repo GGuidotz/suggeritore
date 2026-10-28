@@ -107,6 +107,46 @@ if [ "${TYPEWITHME_ICON:-${SUGGERITORE_ICON:-}}" != classic ] && [ -d Resources/
   fi
 fi
 
+# llama-server dentro l'app (Contents/Helpers/llama, con le sue librerie): chi installa non ha bisogno di Homebrew.
+# Dalla release di llama.cpp scritta in packaging/llama.cpp-version ("latest": l'ultima, risolta adesso), solo per
+# Apple silicon; scaricata una volta in build/llama-cache. Senza rete si continua senza: l'app usa quello di Homebrew.
+# TYPEWITHME_LLAMA=none ./build.sh … salta questo passo.
+LLAMA_TAG=""
+if [ "${TYPEWITHME_LLAMA:-}" != none ]; then
+  LLAMA_TAG=$(tr -d '[:space:]' < packaging/llama.cpp-version 2>/dev/null || echo latest)
+  if [ -z "$LLAMA_TAG" ] || [ "$LLAMA_TAG" = latest ]; then
+    LLAMA_TAG=$(curl -fsSI https://github.com/ggml-org/llama.cpp/releases/latest 2>/dev/null \
+      | awk 'tolower($1)=="location:" {print $2}' | tr -d '\r' | sed 's|.*/tag/||') || true
+  fi
+  LLAMA_CACHE="$BUILD/llama-cache/$LLAMA_TAG"
+  if [ -n "$LLAMA_TAG" ] && [ ! -x "$LLAMA_CACHE/llama-server" ]; then
+    ZIP="$BUILD/llama-cache/llama-$LLAMA_TAG-bin-macos-arm64.zip"
+    mkdir -p "$BUILD/llama-cache"
+    if curl -fsSL -o "$ZIP" "https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA_TAG/llama-$LLAMA_TAG-bin-macos-arm64.zip"; then
+      UNZIP=$(mktemp -d)
+      unzip -q "$ZIP" -d "$UNZIP"
+      SERVER=$(find "$UNZIP" -type f -name llama-server | head -n 1)
+      if [ -n "$SERVER" ]; then
+        rm -rf "$LLAMA_CACHE"; mkdir -p "$LLAMA_CACHE"
+        cp "$SERVER" "$LLAMA_CACHE/"
+        find "${SERVER:h}" -maxdepth 1 -name '*.dylib' -exec cp -P {} "$LLAMA_CACHE/" \;
+        [ -f "$UNZIP/LICENSE" ] && cp "$UNZIP/LICENSE" "$LLAMA_CACHE/LICENSE-llama.cpp"
+        # Le librerie stanno accanto all'eseguibile: che le cerchi lì anche se la release non lo dice già.
+        install_name_tool -add_rpath @loader_path "$LLAMA_CACHE/llama-server" 2>/dev/null || true
+      fi
+      rm -rf "$UNZIP" "$ZIP"
+    fi
+  fi
+  if [ -n "$LLAMA_TAG" ] && [ -x "$LLAMA_CACHE/llama-server" ]; then
+    mkdir -p "$APP/Contents/Helpers/llama"
+    cp -P "$LLAMA_CACHE"/* "$APP/Contents/Helpers/llama/"
+    plist_set SGRLlamaTag "$LLAMA_TAG"
+  else
+    echo "llama-server non incluso (release di llama.cpp non scaricata): l'app userà quello di Homebrew."
+    LLAMA_TAG=""
+  fi
+fi
+
 # Dati per la diagnostica e per gli aggiornamenti (Sources/App/Diagnostics.swift, Sources/App/Updater.swift).
 plist_set SGRGitCommit "$COMMIT"
 plist_set SGRIconTier "$ICON_TIER"
@@ -115,17 +155,27 @@ plist_set SGRIconTier "$ICON_TIER"
 plutil -lint "$PLIST" >/dev/null
 xattr -cr "$APP"
 KC="$HOME/.nod-signing/nod-signing.keychain"
+# Prima il codice annidato (llama-server e le sue librerie), poi l'app: stessa identità per tutto.
+sign() {
+  if [ -f "$KC" ]; then codesign --force --keychain "$KC" --sign "Nod Local Signing" "$@"
+  else codesign --force --sign - "$@"; fi
+}
+[ -f "$KC" ] && security unlock-keychain -p nod "$KC"
+if [ -d "$APP/Contents/Helpers/llama" ]; then
+  for f in "$APP"/Contents/Helpers/llama/*.dylib(N) "$APP/Contents/Helpers/llama/llama-server"; do
+    [ -L "$f" ] || sign "$f"
+  done
+fi
 if [ -f "$KC" ]; then
   SIGNING=local
-  security unlock-keychain -p nod "$KC"
-  codesign --force --keychain "$KC" --sign "Nod Local Signing" "$APP"
+  sign "$APP"
 else
   SIGNING=adhoc
-  codesign --force --sign - "$APP"
+  sign "$APP"
   echo "Attenzione: firma ad hoc. A ogni build macOS dimentica Accessibilità e Monitoraggio input (vedi make-signing-identity.sh di Nod)."
 fi
 codesign --verify --strict "$APP"
-echo "Pronto: $APP ($VERSION, build $BUILD_NUMBER, commit $COMMIT, firma $SIGNING, icona $ICON_TIER${ICON_CHECK:+: $ICON_CHECK})"
+echo "Pronto: $APP ($VERSION, build $BUILD_NUMBER, commit $COMMIT, firma $SIGNING, icona $ICON_TIER${ICON_CHECK:+: $ICON_CHECK}, llama.cpp ${LLAMA_TAG:-da Homebrew})"
 
 case "$MODE" in
   install)
