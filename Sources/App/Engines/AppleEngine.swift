@@ -52,9 +52,8 @@ final class AppleEngine: CompletionEngine, @unchecked Sendable {
         if #available(macOS 26.0, *) {
             guard Self.unavailableReason == nil else { throw EngineError(Self.unavailableReason ?? "") }
             let session = LanguageModelSession(instructions: Prompting.completionInstructions(request))
-            // Greedy: sempre la parola più probabile, niente temperatura (da verificare sul Mac: l'inizializzatore
-            // GenerationOptions(sampling:temperature:maximumResponseTokens:) è quello dell'SDK di macOS 26).
-            let options = GenerationOptions(sampling: .greedy, temperature: nil,
+            // Greedy: sempre la parola più probabile, niente temperatura.
+            let options = GenerationOptions(samplingMode: .greedy, temperature: nil,
                                             maximumResponseTokens: request.length.maxTokens)
             // Da verificare sul Mac: in macOS 26 ogni elemento dello stream è uno snapshot con `.content` (per le
             // risposte testuali una String con tutto il testo scritto finora).
