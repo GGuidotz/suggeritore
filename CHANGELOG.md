@@ -1,0 +1,43 @@
+# Novità
+
+Formato: `## <versione> · <data>`, poi `### Novità`, `### Miglioramenti`, `### Correzioni`, una riga `- ` per
+cambiamento. L'app mostra la sezione della sua versione in Impostazioni › Aggiornamenti (Sources/App/Changelog.swift).
+
+## 0.2.0 · 2026-10-28
+
+Gemma 3 diventa il motore consigliato: suggerimenti più precisi e più rapidi, che compaiono già mentre il modello li scrive. Tutto resta sul Mac.
+
+### Novità
+- **Gemma con llama.cpp.** Un nuovo motore: Gemma 3 1B, più preciso e più veloce di Apple Intelligence. Serve llama.cpp (si installa con Homebrew, anche dalla guida o da Impostazioni › Motori); al primo uso scarica il modello, circa 0,8 GB. Il server gira solo sul Mac, parte quando scrivi e si spegne da solo dopo qualche minuto di pausa.
+- **Automatico.** Il motore predefinito: Gemma quando c'è llama.cpp, altrimenti Apple Intelligence, altrimenti regole e memoria. Mentre Gemma si avvia rispondono gli altri, senza aspettare.
+- **Ollama.** Se Ollama è aperto e ha già il modello (per esempio gemma3:1b), Suggeritore usa quello invece di avviare un server suo. Si spegne in Impostazioni › Motori.
+- **Più modelli.** Gemma 3 1B, 4B e 12B pronti da scegliere, più quelli che aggiungi tu con il repository Hugging Face o il nome in Ollama.
+- **Il modello di Cotypist.** Se hai Cotypist, il suo Gemma 3 1B base compare nel catalogo come consigliato e si usa subito, senza scaricare nulla. I modelli base continuano il testo in modo naturale; quelli istruiti seguono anche le tue istruzioni e riscrivono la selezione.
+- **Statistiche da Cotypist.** In Impostazioni › Generale puoi aggiungere al contatore le parole accettate finora in Cotypist. Le sue memorie sono cifrate e restano sue.
+- **Istruzioni per app.** Una frase per il modello che vale solo in un'app, in Impostazioni › App, con tre profili consigliati da accettare con un pulsante: Mail formale, Messaggi da chat, Note sintetico.
+- **Abbreviazioni.** Scrivi una sigla e poi uno spazio: diventa il testo intero ("cmq" diventa "comunque", ";firma" la tua firma). Le scegli tu in Impostazioni › Suggerimenti; nessuna è attiva in partenza.
+- **Stato a colpo d'occhio.** In cima a Impostazioni › Generale: lo stato, il motore in uso, le parole accettate oggi e da sempre, i suggerimenti accettati e il tempo medio di risposta. La stessa vista andrà nell'isola di Cocaine.
+
+### Miglioramenti
+- **Il seguito appare mentre arriva.** Il testo grigio compare con le prime parole e si completa man mano, con Gemma e con Apple Intelligence: l'attesa si sente meno.
+- **Apple Intelligence più svelta.** Legge gli ultimi 700 caratteri invece di duemila, sceglie sempre la parola più probabile e riceve istruzioni più corte: risponde prima e divaga meno.
+- **Impostazioni › Motori.** La scheda Apple Intelligence diventa Motori: scelta del motore, stato di llama.cpp e del server (avvia, ferma, minuti prima di spegnersi), modello, Apple Intelligence e le tue istruzioni.
+- **Guida al primo avvio.** Un passo nuovo, "Il motore": cosa cambia tra Gemma e Apple Intelligence e come installare llama.cpp, con il comando da copiare o da eseguire nel Terminale.
+- **Menu nella barra.** La riga di stato dice anche il motore ("Pronto · Gemma 3 1B") e, mentre Gemma si avvia o scarica il modello, lo scrive.
+- **Riscrivi la selezione con Gemma.** La riscrittura usa lo stesso motore dei suggerimenti.
+- **Diagnostica.** Il report dice anche motore in uso, stato del server, modello scelto e tempo medio di risposta; mai percorsi né testo.
+
+## 0.1.0 · 2026-10-28
+
+Prima versione: il seguito di ciò che scrivi, suggerito in grigio in qualunque app del Mac, tutto sul Mac.
+
+### Novità
+- **Suggerimenti ovunque.** Mentre scrivi in un campo di testo, dopo una breve pausa compare in grigio il seguito proposto. Tab accetta la prossima parola, Maiusc-Tab tutta la frase, Esc lo scarta; se continui a scrivere, sparisce da solo. Tasti e lunghezza si cambiano in Impostazioni › Suggerimenti.
+- **Apple Intelligence.** Il motore è il modello sul Mac: niente rete, niente dati che escono. Quando non è disponibile restano le regole.
+- **Correzioni italiane in linea.** Accenti e apostrofi sistemati appena finisci la parola ("perche" diventa "perché", "un pò" diventa "un po'"), con interruttore.
+- **Memoria delle tue frasi.** I seguiti che accetti vengono ricordati sul Mac e riproposti subito, senza modello; un pulsante dimentica tutto.
+- **Riscrivi la selezione.** Ctrl-Opzione-R sul testo selezionato: più breve, più formale, più informale, correggi o un'istruzione tua, con anteprima prima di sostituire.
+- **Completamento a metà riga.** Con testo dopo il cursore, il suggerimento si raccorda a ciò che segue (sperimentale, con interruttore).
+- **Istruzioni tue.** In Impostazioni › Apple Intelligence una frase che vale per tutti i suggerimenti, per esempio il tono che preferisci.
+- **App escluse.** Mai nei campi password e nelle app con input sicuro; gestori di password e Terminale esclusi in partenza; ogni app si spegne dal menu nella barra.
+- **Guida al primo avvio, novità, aggiornamenti e feedback.** Come nelle altre app della famiglia: permessi spiegati quando servono, novità dopo ogni aggiornamento, controllo degli aggiornamenti da GitHub, segnalazioni con i dati del Mac già scritti.
