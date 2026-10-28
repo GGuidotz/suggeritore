@@ -83,11 +83,13 @@ struct TextContext: Equatable {
 
 /// Quanto lungo deve essere un suggerimento.
 enum SuggestionLength: String, CaseIterable, Codable, Identifiable {
-    case short, medium, long
+    /// Solo la parola che stai scrivendo: aiuto all'ortografia, mai la parola dopo.
+    case word, short, medium, long
     var id: String { rawValue }
 
     var title: String {
         switch self {
+        case .word: L("Parola")
         case .short: L("Breve")
         case .medium: L("Media")
         case .long: L("Lunga")
@@ -96,6 +98,7 @@ enum SuggestionLength: String, CaseIterable, Codable, Identifiable {
 
     var detail: String {
         switch self {
+        case .word: L("Solo la parola che stai scrivendo, mai quella dopo.")
         case .short: L("Poche parole, fino a fine frase.")
         case .medium: L("Una frase intera.")
         case .long: L("Fino a due frasi.")
@@ -105,6 +108,7 @@ enum SuggestionLength: String, CaseIterable, Codable, Identifiable {
     /// Parole al massimo nel suggerimento mostrato.
     var maxWords: Int {
         switch self {
+        case .word: 1
         case .short: 6
         case .medium: 14
         case .long: 30
@@ -130,6 +134,10 @@ struct CompletionRequest {
     var appInstructions: String = ""
     /// Gli appunti, se l'utente ha scelto di usarli come contesto.
     var clipboard: String?
+    /// Il testo riconosciuto nella finestra in primo piano (Contesto dallo schermo), se acceso.
+    var screen: String?
+    /// Pezzi di testo scritti prima da chi usa l'app, nella stessa app (Personalizzazione), per imitarne le parole.
+    var ownWriting: [String] = []
 }
 
 enum SuggestionSource: String {

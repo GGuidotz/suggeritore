@@ -24,6 +24,12 @@ enum Prompting {
         if r.clipboard != nil {
             lines.append("- Use the clipboard only if it clearly helps (names, numbers, addresses).")
         }
+        if r.screen != nil {
+            lines.append("- The screen text shows what the user is looking at: use it for names, facts and the topic, never copy it blindly.")
+        }
+        if !r.ownWriting.isEmpty {
+            lines.append("- Earlier texts by the user are given: prefer their words, phrases and style.")
+        }
         let own = r.instructions.trimmingCharacters(in: .whitespacesAndNewlines)
         if !own.isEmpty {
             lines.append("User preferences: \(own)")
@@ -36,7 +42,15 @@ enum Prompting {
     }
 
     static func completionPrompt(_ r: CompletionRequest) -> String {
+        // Prima ciò che cambia di rado (app, scritti tuoi, schermo, appunti), poi il testo: così l'inizio del prompt
+        // resta uguale tra una richiesta e l'altra e llama.cpp lo riprende dalla cache.
         var out = "App: \(r.context.appName.isEmpty ? "unknown" : r.context.appName)\n"
+        for (i, own) in r.ownWriting.enumerated() {
+            out += "Earlier text by the user (\(i + 1)):\n«\(own)»\n"
+        }
+        if let screen = r.screen, !screen.isEmpty {
+            out += "Text on screen:\n«\(String(screen.prefix(Self.maxScreen)))»\n"
+        }
         if let clip = r.clipboard, !clip.isEmpty {
             out += "Clipboard:\n«\(String(clip.prefix(500)))»\n"
         }
@@ -52,6 +66,25 @@ enum Prompting {
             out += "The text ends in the middle of the word \"\(r.context.partialWord)\". Complete it, then continue."
         }
         return out
+    }
+
+    /// Caratteri al massimo del testo dello schermo nel prompt.
+    static let maxScreen = 800
+
+    /// Il prompt per un modello base, che non segue istruzioni ma continua un documento: un'intestazione con le tue
+    /// istruzioni, i tuoi scritti, lo schermo e gli appunti, e poi il testo da continuare. L'intestazione cambia di
+    /// rado, quindi resta nella cache del prompt; senza niente da dire, il prompt è il testo e basta.
+    static func rawPrompt(_ r: CompletionRequest) -> String {
+        var header: [String] = []
+        let own = r.instructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !own.isEmpty { header.append("About the writer: \(own)") }
+        let forApp = r.appInstructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !forApp.isEmpty { header.append("Writing in \(r.context.appName.isEmpty ? "this app" : r.context.appName): \(forApp)") }
+        for piece in r.ownWriting { header.append("Earlier text by the same writer:\n\(piece)") }
+        if let screen = r.screen, !screen.isEmpty { header.append("On screen:\n\(String(screen.prefix(maxScreen)))") }
+        if let clip = r.clipboard, !clip.isEmpty { header.append("Clipboard:\n\(String(clip.prefix(500)))") }
+        guard !header.isEmpty else { return r.context.before }
+        return header.joined(separator: "\n\n") + "\n\n---\n\n" + r.context.before
     }
 
     private static let labels = ["Continuation:", "Completion:", "Output:", "Text:"]
@@ -165,6 +198,7 @@ enum Prompting {
 
     private static func lengthHint(_ length: SuggestionLength) -> String {
         switch length {
+        case .word: "only finish the word being typed, never add another word"
         case .short: "very short: a few words, at most \(length.maxWords)"
         case .medium: "short: one sentence, at most \(length.maxWords) words"
         case .long: "at most two sentences, at most \(length.maxWords) words"

@@ -61,6 +61,12 @@ final class Completer: ObservableObject {
     let monitor = KeyMonitor()
     let overlay = GhostOverlay()
     private lazy var rules = RulesEngine(memory: memory)
+    let screen = ScreenContext()
+    let history = TypingHistory()
+    /// Il campo in cui si sta scrivendo (per la cronologia) e i tuoi testi scelti per lui: restano gli stessi finché
+    /// resti nel campo, così l'inizio del prompt non cambia e resta nella cache.
+    private var historyField: String?
+    private var ownWriting: (field: String, snippets: [String])?
     private let usageReader = OwnUsageReader()
 
     /// Chiamato dalla scorciatoia "Riscrivi la selezione".
@@ -293,6 +299,10 @@ final class Completer: ObservableObject {
 
     private func appChanged() {
         frontApp = FocusReader.frontmostApp()
+        screen.invalidate()
+        history.endAll(recordWithoutAccepting: prefs.recordWithoutAccepting)
+        historyField = nil
+        ownWriting = nil
         dismiss(reason: nil)
     }
 
@@ -369,7 +379,7 @@ final class Completer: ObservableObject {
         requestTask?.cancel()
         requestTask = nil
         generation += 1
-        let delay = override ?? prefs.delay
+        let delay = override ?? effectiveDelay
         debounceTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(delay))
             guard !Task.isCancelled, let self else { return }
@@ -393,6 +403,14 @@ final class Completer: ObservableObject {
         }
         let context = TextContext(before: before, after: after, appName: field.appName, bundleID: field.bundleID)
         guard context.endsAtWordBoundary || context.partialWord.count >= 3 else { return }
+        // "Solo la parola corrente": a fine parola non c'è niente da completare.
+        noteHistory(before, field: field)
+        if prefs.length == .word, context.partialWord.isEmpty { return }
+        let language = LanguageGuess.code(for: before)
+        // La parola a metà sembra già sbagliata: allungarla non aiuta.
+        if prefs.hideOnTypo, !context.partialWord.isEmpty, SpellGuard.looksMistyped(context.partialWord, language: language) {
+            return
+        }
         self.field = field
         self.context = context
         generation += 1
@@ -408,9 +426,11 @@ final class Completer: ObservableObject {
         let limited = engine.kind == .gemma ? context.anchored(caret: field.caret, max: engine.contextLimit)
                                             : context.limited(to: engine.contextLimit)
         let request = CompletionRequest(context: limited, length: prefs.length,
-                                        language: LanguageGuess.code(for: before), instructions: prefs.instructions,
+                                        language: language, instructions: prefs.instructions,
                                         appInstructions: prefs.instruction(forApp: field.bundleID),
-                                        clipboard: clipboardIfAllowed())
+                                        clipboard: clipboardIfAllowed(),
+                                        screen: screenIfAllowed(pid: field.pid, before: limited.before),
+                                        ownWriting: ownWritingFor(field: field, before: before))
         let source: SuggestionSource = engine.kind == .gemma ? .gemma : .apple
         let started = Date()
         let readMs = started.timeIntervalSince(readBegan) * 1000
@@ -514,6 +534,57 @@ final class Completer: ObservableObject {
         generation += 1
     }
 
+    // MARK: - Cronologia e scelta delle parole
+
+    private static func key(for field: FocusedField) -> String { "\(field.pid)-\(CFHash(field.element))" }
+
+    /// Il testo del campo va nella cronologia (se è accesa); cambiare campo chiude la sessione di quello prima.
+    private func noteHistory(_ before: String, field: FocusedField) {
+        let key = Self.key(for: field)
+        if let previous = historyField, previous != key {
+            history.endSession(field: previous, recordWithoutAccepting: prefs.recordWithoutAccepting)
+            ownWriting = nil
+        }
+        historyField = key
+        guard prefs.recordHistory else { return }
+        history.note(before, field: key, bundleID: field.bundleID, appName: field.appName,
+                     recordWithoutAccepting: prefs.recordWithoutAccepting)
+    }
+
+    /// Fino a tre tuoi testi della stessa app, scelti una volta per campo (Personalizzazione › Scelta delle parole).
+    private func ownWritingFor(field: FocusedField, before: String) -> [String] {
+        guard prefs.wordChoice > 0, history.count > 0 else { return [] }
+        let key = Self.key(for: field)
+        if let cached = ownWriting, cached.field == key, !cached.snippets.isEmpty { return cached.snippets }
+        let picked = history.snippets(for: field.bundleID, before: before, count: min(3, prefs.wordChoice))
+        ownWriting = (key, picked)
+        return picked
+    }
+
+    /// L'app si chiude: le sessioni aperte vanno nella cronologia e si salva subito.
+    func closeHistory() {
+        history.endAll(recordWithoutAccepting: prefs.recordWithoutAccepting)
+        history.saveNow()
+    }
+
+    /// A batteria, se la modalità batteria è accesa: pausa doppia, almeno 300 ms.
+    private var effectiveDelay: Double {
+        guard prefs.batterySaver, Power.shouldSave else { return prefs.delay }
+        return max(prefs.delay * 2, 0.3)
+    }
+
+    /// Il testo della finestra in primo piano, senza le righe che sono già nel testo prima del cursore (lo schermo
+    /// mostra anche quello che stai scrivendo). nil se spento, senza permesso o a batteria con la modalità batteria.
+    private func screenIfAllowed(pid: pid_t, before: String) -> String? {
+        guard prefs.screenContext, !(prefs.batterySaver && Power.shouldSave) else { return nil }
+        guard let text = screen.text(for: pid) else { return nil }
+        let lines = text.split(separator: "\n").filter { line in
+            line.count < 12 || !before.contains(line)
+        }
+        let joined = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        return joined.isEmpty ? nil : String(joined.prefix(Prompting.maxScreen))
+    }
+
     private func clipboardIfAllowed() -> String? {
         guard prefs.clipboardContext, let text = NSPasteboard.general.string(forType: .string) else { return nil }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -583,6 +654,7 @@ final class Completer: ObservableObject {
     private static let afterAcceptDelay = 0.08
 
     private func noteAccepted() {
+        if let historyField { history.markAccepted(field: historyField) }
         guard !acceptedCurrent else { return }
         acceptedCurrent = true
         stats.acceptedSuggestions += 1

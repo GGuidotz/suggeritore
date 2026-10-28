@@ -411,8 +411,8 @@ final class LlamaServer: ObservableObject {
         stop()
     }
 
-    /// Vero quando conviene non tenere il modello in memoria senza motivo. Per ora mai; la modalità batteria lo usa.
-    var shouldSaveEnergy: Bool { false }
+    /// Vero quando conviene non tenere il modello in memoria senza motivo: a batteria, se la modalità batteria è accesa.
+    var shouldSaveEnergy: Bool { prefs.batterySaver && Power.shouldSave }
 
     // MARK: - Registro
 

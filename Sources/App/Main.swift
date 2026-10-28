@@ -45,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Il server di Gemma è un processo nostro: si chiude con l'app.
     func applicationWillTerminate(_ notification: Notification) {
         AppModel.shared.completer.llama.terminate()
+        AppModel.shared.completer.closeHistory()
     }
 
     /// Aprire l'app già aperta (dal Finder o da Spotlight) apre le impostazioni: la barra dei menu non si nota.

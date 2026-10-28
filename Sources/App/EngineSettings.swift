@@ -18,7 +18,6 @@ struct EngineSettings: View {
             GemmaModelSection(prefs: prefs, llama: llama)
             CustomModelsSection(prefs: prefs)
             AppleIntelligenceSection(completer: completer)
-            InstructionsSection(prefs: prefs)
         }
         .onAppear {
             llama.refreshInstalled()
@@ -82,7 +81,7 @@ private struct GemmaServerSection: View {
             }
             Toggle(L("Usa Ollama se è aperto"), isOn: $prefs.useOllama)
             Toggle(L("Tieni il modello pronto"), isOn: $prefs.keepModelLoaded)
-            if !prefs.keepModelLoaded {
+            if !prefs.keepModelLoaded || prefs.batterySaver {
                 LabeledContent(L("Spegni dopo")) {
                     Stepper(value: $prefs.llamaIdleMinutes, in: 1...120, step: 1) {
                         Text(L("%d minuti senza richieste", Int(prefs.llamaIdleMinutes))).monospacedDigit()
@@ -258,7 +257,8 @@ private struct AppleIntelligenceSection: View {
     }
 }
 
-private struct InstructionsSection: View {
+/// Le tue istruzioni per il modello: stanno nella scheda Personalizzazione.
+struct InstructionsSection: View {
     @ObservedObject var prefs: Preferences
 
     var body: some View {

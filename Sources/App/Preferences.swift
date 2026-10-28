@@ -41,6 +41,18 @@ final class Preferences: ObservableObject {
     /// Gli appunti come contesto per il modello: lo si sceglie nella guida al primo avvio.
     @Published var clipboardContext: Bool { didSet { defaults.set(clipboardContext, forKey: "clipboardContext") } }
     @Published var clipboardDecided: Bool { didSet { defaults.set(clipboardDecided, forKey: "clipboardDecided") } }
+    /// Il testo visibile nella finestra in primo piano come contesto (serve il permesso Registrazione schermo).
+    @Published var screenContext: Bool { didSet { defaults.set(screenContext, forKey: "screenContext") } }
+    /// Niente suggerimento quando la parola che stai scrivendo sembra già sbagliata.
+    @Published var hideOnTypo: Bool { didSet { defaults.set(hideOnTypo, forKey: "hideOnTypo") } }
+    /// A batteria: pausa più lunga, niente contesto dallo schermo, modello spento dopo i minuti di inattività.
+    @Published var batterySaver: Bool { didSet { defaults.set(batterySaver, forKey: "batterySaver") } }
+    /// Cronologia di scrittura (Personalizzazione): cifrata, solo sul Mac.
+    @Published var recordHistory: Bool { didSet { defaults.set(recordHistory, forKey: "recordHistory") } }
+    /// Registra il testo anche nei campi dove non hai accettato nessun suggerimento.
+    @Published var recordWithoutAccepting: Bool { didSet { defaults.set(recordWithoutAccepting, forKey: "recordWithoutAccepting") } }
+    /// Quanto i suggerimenti imitano le tue parole: 0 spento, 1 leggero, 2 medio, 3 forte.
+    @Published var wordChoice: Int { didSet { defaults.set(wordChoice, forKey: "wordChoice") } }
     /// Bundle id delle app dove non suggerire mai.
     @Published var excludedApps: Set<String> { didSet { save(Array(excludedApps).sorted(), "excludedApps") } }
     /// Una frase di istruzioni per il modello (tono, stile).
@@ -104,6 +116,12 @@ final class Preferences: ObservableObject {
         abbreviations = load("abbreviations", [Abbreviation]())
         clipboardContext = d.bool(forKey: "clipboardContext")
         clipboardDecided = d.bool(forKey: "clipboardDecided")
+        screenContext = d.bool(forKey: "screenContext")
+        hideOnTypo = d.object(forKey: "hideOnTypo") as? Bool ?? true
+        batterySaver = d.object(forKey: "batterySaver") as? Bool ?? true
+        recordHistory = d.bool(forKey: "recordHistory")
+        recordWithoutAccepting = d.object(forKey: "recordWithoutAccepting") as? Bool ?? true
+        wordChoice = d.object(forKey: "wordChoice") as? Int ?? 1
         excludedApps = Set(load("excludedApps", Exclusions.defaults))
         instructions = d.string(forKey: "instructions") ?? ""
         appInstructions = load("appInstructions", [String: String]())

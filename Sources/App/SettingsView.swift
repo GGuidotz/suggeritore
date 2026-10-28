@@ -22,6 +22,7 @@ struct SettingsView: View {
             case .general: GeneralSettings(model: model, prefs: prefs, completer: model.completer)
             case .suggestions: SuggestionSettings(prefs: prefs, completer: model.completer)
             case .apps: AppsSettings(prefs: prefs, completer: model.completer)
+            case .personalization: PersonalizationSettings(prefs: prefs, history: model.completer.history)
             case .engines: EngineSettings(prefs: prefs, completer: model.completer, llama: model.completer.llama)
             case .updates: UpdatesSettings(updater: model.updater, prefs: prefs)
             case .feedback: FeedbackSettings(model: model)
@@ -223,10 +224,12 @@ private struct SuggestionSettings: View {
                     }
                 }
                 Toggle(L("Completa anche a metà riga (sperimentale)"), isOn: $prefs.midLine)
+                Toggle(L("Niente suggerimenti se la parola sembra sbagliata"), isOn: $prefs.hideOnTypo)
+                Toggle(L("A batteria, risparmia energia"), isOn: $prefs.batterySaver)
             } header: {
                 Text(L("Quando e quanto"))
             } footer: {
-                Footnote(L("Il suggerimento arriva dopo una pausa nella scrittura. A metà riga il seguito deve raccordarsi con il testo che c'è dopo il cursore: funziona, ma non sempre bene."))
+                Footnote(L("Il suggerimento arriva dopo una pausa nella scrittura. A metà riga il seguito deve raccordarsi con il testo che c'è dopo il cursore: funziona, ma non sempre bene. Con una parola che sembra sbagliata il suggerimento la allungherebbe con l'errore: meglio niente. A batteria la pausa raddoppia, lo schermo non si legge e il modello si spegne dopo i minuti di inattività scelti in Motori."))
             }
 
             Section {
@@ -346,10 +349,27 @@ private struct AppsSettings: View {
         Form {
             Section {
                 Toggle(L("Usa gli appunti come contesto"), isOn: $prefs.clipboardContext)
+                Toggle(L("Usa lo schermo come contesto"), isOn: Binding(
+                    get: { prefs.screenContext },
+                    set: { on in
+                        prefs.screenContext = on
+                        if on, !ScreenContext.hasPermission { ScreenContext.requestPermission() }
+                    }))
+                if prefs.screenContext, !ScreenContext.hasPermission {
+                    HStack {
+                        Text(L("Serve il permesso Registrazione schermo.")).foregroundStyle(.secondary)
+                        Spacer()
+                        Button(L("Apri Impostazioni di Sistema")) {
+                            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                    }
+                }
             } header: {
                 Text(L("Contesto"))
             } footer: {
-                Footnote(L("Con gli appunti il modello vede anche l'ultima cosa che hai copiato (nomi, numeri, indirizzi) e la usa se c'entra. Tutto resta sul Mac. Spento, gli appunti non vengono letti mai."))
+                Footnote(L("Con gli appunti il modello vede anche l'ultima cosa che hai copiato (nomi, numeri, indirizzi) e la usa se c'entra. Con lo schermo legge il testo della finestra in cui scrivi (una mail a cui rispondi, una pagina), riconosciuto sul Mac, al più ogni pochi secondi e mai a ogni tasto; il testo resta in memoria e non si salva. Spenti, appunti e schermo non vengono letti mai. Dopo aver concesso il permesso può servire riaprire l'app."))
             }
 
             Section {

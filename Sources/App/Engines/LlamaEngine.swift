@@ -86,7 +86,7 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
     /// Modello base: il prompt è il testo stesso, il modello lo continua. Si ferma a fine riga.
     private func completeRaw(_ request: CompletionRequest, partial: @escaping @Sendable (String) -> Void) async throws -> String {
         var object: [String: Any] = [:]
-        object["prompt"] = request.context.before
+        object["prompt"] = Prompting.rawPrompt(request)
         object["n_predict"] = request.length.maxTokens
         object["temperature"] = 0.3
         object["top_k"] = 40
