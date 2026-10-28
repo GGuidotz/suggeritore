@@ -20,7 +20,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
             w.delegate = self
             window = w
         }
-        window?.title = L("Benvenuto in Suggeritore")
+        window?.title = L("Benvenuto in Type_w/Me")
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
     }
@@ -97,7 +97,7 @@ struct OnboardingView: View {
                 .resizable()
                 .frame(width: 96, height: 96)
                 .accessibilityHidden(true)
-            Text(L("Benvenuto in Suggeritore"))
+            Text(L("Benvenuto in Type_w/Me"))
                 .font(.largeTitle.weight(.semibold))
                 .fontDesign(.rounded)
                 .multilineTextAlignment(.center)
@@ -117,7 +117,7 @@ struct OnboardingView: View {
         StepPage(symbol: "lock.open", title: L("Due permessi"),
                  text: L("Per vedere in che campo scrivi e appoggiarci il suggerimento, macOS chiede il permesso Accessibilità. Per vedere Tab ed Esc, su alcune versioni, anche Monitoraggio input.")) {
             PermissionRow(title: L("Accessibilità"), granted: accessibility,
-                          detail: L("Indispensabile: senza, Suggeritore non può fare niente."),
+                          detail: L("Indispensabile: senza, Type_w/Me non può fare niente."),
                           request: { Permissions.requestAccessibility() }, open: { Permissions.openAccessibilitySettings() })
                 .contentCard()
             PermissionRow(title: L("Monitoraggio input"), granted: inputMonitoring,
@@ -125,20 +125,22 @@ struct OnboardingView: View {
                           request: { Permissions.requestInputMonitoring() }, open: { Permissions.openInputMonitoringSettings() })
                 .contentCard()
             if accessibility, completer.monitor.isRunning {
-                Label(L("Tutto a posto: Suggeritore vede la tastiera."), systemImage: "checkmark.circle.fill")
+                Label(L("Tutto a posto: Type_w/Me vede la tastiera."), systemImage: "checkmark.circle.fill")
                     .foregroundStyle(Palette.calm)
             } else if accessibility {
-                Footnote(L("Permesso concesso ma macOS non consegna ancora i tasti: chiudi e riapri Suggeritore."))
+                Footnote(L("Permesso concesso ma macOS non consegna ancora i tasti: chiudi e riapri Type_w/Me."))
             }
-            Footnote(L("In Impostazioni di Sistema › Privacy e sicurezza trovi Suggeritore nell'elenco: accendi l'interruttore. Niente esce dal Mac."))
+            Footnote(L("In Impostazioni di Sistema › Privacy e sicurezza trovi Type_w/Me nell'elenco: accendi l'interruttore. Niente esce dal Mac."))
         }
     }
 
     private var engine: some View {
         StepPage(symbol: "cpu", title: L("Il motore"),
-                 text: L("Gemma 3 1B è il consigliato: più preciso e più veloce; serve llama.cpp, che si installa con Homebrew, e al primo uso scarica circa 0,8 GB. Apple Intelligence è già sul Mac, senza installare niente, ma è più debole.")) {
+                 text: L("Gemma 3 1B è il consigliato: più preciso e più veloce. Usa llama.cpp, già incluso nell'app sui Mac con Apple silicon (altrimenti si installa con Homebrew), e al primo uso scarica circa 0,8 GB. Apple Intelligence è già sul Mac, senza installare niente, ma è più debole.")) {
             if llamaInstalled {
-                Label(L("llama.cpp è installato: Gemma parte alla prima richiesta."), systemImage: "checkmark.circle.fill")
+                Label(LlamaServer.bundledTag == nil ? L("llama.cpp è installato: Gemma parte alla prima richiesta.")
+                                                    : L("llama.cpp è incluso nell'app: Gemma è pronto."),
+                      systemImage: "checkmark.circle.fill")
                     .foregroundStyle(Palette.calm)
             } else {
                 LlamaInstallBox()
@@ -165,11 +167,8 @@ struct OnboardingView: View {
             Tip(symbol: "text.append", text: L("%@: prendi tutto il suggerimento.", prefs.acceptAll.display))
             Tip(symbol: "xmark", text: L("%@, o semplicemente continua a scrivere: il suggerimento sparisce.", prefs.dismiss.display))
             Tip(symbol: "pencil.line", text: L("%@ sul testo selezionato: più breve, più formale, correggi, o un'istruzione tua.", prefs.rewrite.display))
-            Picker(L("Lunghezza"), selection: $prefs.length) {
-                ForEach(SuggestionLength.allCases) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .padding(.top, 4)
+            WordLimitSlider(prefs: prefs)
+                .padding(.top, 4)
             Footnote(L("Tasti e lunghezza si cambiano in Impostazioni › Suggerimenti."))
         }
     }
@@ -201,7 +200,7 @@ struct OnboardingView: View {
             if !completer.monitor.isRunning {
                 Footnote(L("Manca il permesso Accessibilità: torna indietro di quattro passi per concederlo."))
             }
-            Tip(symbol: "menubar.rectangle", text: L("Nella barra dei menu trovi lo stato, la pausa e \"Suggerisci in questa app\" per spegnere Suggeritore dove non lo vuoi."))
+            Tip(symbol: "menubar.rectangle", text: L("Nella barra dei menu trovi lo stato, la pausa e \"Suggerisci in questa app\" per spegnere Type_w/Me dove non lo vuoi."))
             Tip(symbol: "lock", text: L("Nei campi password e nelle app con input sicuro non suggerisce mai. Gestori di password e Terminale sono esclusi in partenza."))
             Toggle(L("Apri all'accesso"), isOn: Binding(
                 get: { LaunchAtLogin.isEnabled },

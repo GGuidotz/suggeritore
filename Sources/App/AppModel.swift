@@ -1,4 +1,4 @@
-// Suggeritore: il seguito di quello che scrivi, in ogni app del Mac. Vive nella barra dei menu (LSUIElement: niente
+// Type_w/Me: il seguito di quello che scrivi, in ogni app del Mac. Vive nella barra dei menu (LSUIElement: niente
 // Dock). AppModel tiene insieme preferenze, il completatore (tasti, campo, modello, testo fantasma), la riscrittura,
 // gli aggiornamenti e le finestre. Il ciclo di vita è AppKit (Sources/App/Main.swift).
 

@@ -54,7 +54,7 @@ final class AppleEngine: CompletionEngine, @unchecked Sendable {
             let session = LanguageModelSession(instructions: Prompting.completionInstructions(request))
             // Greedy: sempre la parola più probabile, niente temperatura.
             let options = GenerationOptions(samplingMode: .greedy, temperature: nil,
-                                            maximumResponseTokens: request.length.maxTokens)
+                                            maximumResponseTokens: request.maxTokens)
             // Da verificare sul Mac: in macOS 26 ogni elemento dello stream è uno snapshot con `.content` (per le
             // risposte testuali una String con tutto il testo scritto finora).
             let stream = session.streamResponse(to: Prompting.completionPrompt(request), options: options)

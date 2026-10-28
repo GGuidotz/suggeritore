@@ -7,11 +7,34 @@
 
 import Foundation
 
+/// I tempi che llama-server mette nell'ultimo pezzo della risposta ("timings"): quanti token di prompt ha elaborato,
+/// quanti ha ripreso dalla cache e quanto ci ha messo. Solo numeri, per la diagnostica.
+struct LlamaTimings: Equatable, Sendable {
+    var promptTokens: Int
+    var cachedTokens: Int?
+    var promptMs: Double
+    var predictedTokens: Int
+    var predictedMs: Double
+
+    init?(_ chunk: [String: Any]) {
+        guard let t = chunk["timings"] as? [String: Any] else { return nil }
+        func number(_ key: String) -> Double? { (t[key] as? NSNumber)?.doubleValue }
+        guard let promptN = number("prompt_n"), let promptMs = number("prompt_ms") else { return nil }
+        promptTokens = Int(promptN)
+        self.promptMs = promptMs
+        predictedTokens = Int(number("predicted_n") ?? 0)
+        predictedMs = number("predicted_ms") ?? 0
+        if let cache = number("cache_n") { cachedTokens = Int(cache) }
+        else if let cached = (chunk["tokens_cached"] as? NSNumber)?.intValue { cachedTokens = Swift.max(0, cached - promptTokens) }
+    }
+}
+
 final class LlamaEngine: CompletionEngine, @unchecked Sendable {
     let kind = EngineKind.gemma
     let displayName: String
-    /// Gemma ha una finestra ampia (il server parte con 2048 token): i 2000 caratteri letti dal campo ci stanno.
-    let contextLimit = TextContext.maxBefore
+    /// Circa 1.200 caratteri (300-400 token): abbastanza per il tono e il filo del discorso, pochi da rielaborare
+    /// quando la cache del prompt non basta. Il server parte con 2048 token.
+    let contextLimit = 1200
     let baseURL: URL
     /// Il campo "model" della richiesta: per Ollama il nome del modello, per llama-server è indifferente.
     let model: String
@@ -19,6 +42,15 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
     let rawCompletion: Bool
 
     var unavailableReason: String? { nil }
+
+    private let lock = NSLock()
+    private var timings: LlamaTimings?
+    /// I tempi dell'ultima risposta arrivata fino in fondo, se il server li ha dati.
+    var lastTimings: LlamaTimings? { lock.withLock { timings } }
+    private func note(_ chunk: [String: Any]) {
+        guard let t = LlamaTimings(chunk) else { return }
+        lock.withLock { timings = t }
+    }
 
     init(baseURL: URL, model: String, displayName: String, rawCompletion: Bool = false) {
         self.baseURL = baseURL
@@ -28,9 +60,10 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
     }
 
     func complete(_ request: CompletionRequest, partial: @escaping @Sendable (String) -> Void) async throws -> String {
+        lock.withLock { timings = nil }
         if rawCompletion { return try await completeRaw(request, partial: partial) }
         let body = Self.body(model: model, system: Prompting.completionInstructions(request),
-                             user: Prompting.completionPrompt(request), maxTokens: request.length.maxTokens,
+                             user: Prompting.completionPrompt(request), maxTokens: request.maxTokens,
                              temperature: 0.2, stream: true)
         let (bytes, response) = try await LocalHTTP.session.bytes(for: chatRequest(body))
         try Self.check(response)
@@ -40,6 +73,7 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
             let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
             if payload == "[DONE]" { break }
             if let message = Self.errorMessage(payload) { throw EngineError(message) }
+            if payload.contains("\"timings\""), let chunk = Self.parse(payload) { note(chunk) }
             guard let piece = Self.content(payload), !piece.isEmpty else { continue }
             text += piece
             partial(text)
@@ -52,13 +86,14 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
     /// Modello base: il prompt è il testo stesso, il modello lo continua. Si ferma a fine riga.
     private func completeRaw(_ request: CompletionRequest, partial: @escaping @Sendable (String) -> Void) async throws -> String {
         var object: [String: Any] = [:]
-        object["prompt"] = request.context.before
-        object["n_predict"] = request.length.maxTokens
-        object["temperature"] = 0.3
-        object["top_k"] = 40
-        object["top_p"] = 0.9
+        object["prompt"] = Prompting.rawPrompt(request)
+        object["n_predict"] = request.maxTokens
+        // La parola più probabile, sempre: suggerimenti stabili, e la probabilità di ogni token per decidere dove
+        // fermarsi (ConfidenceStop). Niente stop a "\n": dopo una frase finita il modello va spesso a capo e il seguito
+        // è la riga dopo (Prompting.cleanCompletion la prende); ci si ferma a fine riga, sotto.
+        object["temperature"] = 0
         object["repeat_penalty"] = 1.1
-        object["stop"] = ["\n"]
+        object["n_probs"] = 1
         object["cache_prompt"] = true
         object["stream"] = true
         var urlRequest = URLRequest(url: baseURL.appendingPathComponent("completion"))
@@ -68,20 +103,43 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
         urlRequest.httpBody = (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
         let (bytes, response) = try await LocalHTTP.session.bytes(for: urlRequest)
         try Self.check(response)
-        var text = ""
+        var stop = ConfidenceStop(length: request.length, maxWords: request.maxWords)
+        var natural = false
         for try await line in bytes.lines {
             guard line.hasPrefix("data:") else { continue }
             let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
             if payload == "[DONE]" { break }
             if let message = Self.errorMessage(payload) { throw EngineError(message) }
             guard let chunk = Self.parse(payload) else { continue }
+            note(chunk)
             if let piece = chunk["content"] as? String, !piece.isEmpty {
-                text += piece
-                partial(text)
+                if stop.add(piece, probability: Self.probability(chunk)) { break }
+                // Si mostra solo quello di cui il modello è già sicuro: niente parole che compaiono e spariscono.
+                if !stop.confident.isEmpty { partial(stop.confident) }
+                // Finita la riga (dopo un eventuale a capo iniziale), il seguito è completo.
+                if AppleEngine.endsLine(stop.text) { natural = true; break }
             }
-            if (chunk["stop"] as? Bool) == true { break }
+            if (chunk["stop"] as? Bool) == true {
+                natural = (chunk["stop_type"] as? String) != "limit"
+                break
+            }
         }
-        return text
+        return stop.result(natural: natural)
+    }
+
+    /// La probabilità del pezzo (il prodotto di quelle dei suoi token), da "completion_probabilities" di llama-server:
+    /// "logprob" nelle versioni nuove, "prob" in quelle vecchie. nil se il server non la dà.
+    static func probability(_ chunk: [String: Any]) -> Double? {
+        guard let tokens = chunk["completion_probabilities"] as? [[String: Any]], !tokens.isEmpty else { return nil }
+        var product = 1.0
+        for token in tokens {
+            if let logprob = (token["logprob"] as? NSNumber)?.doubleValue { product *= exp(logprob) }
+            else if let prob = (token["prob"] as? NSNumber)?.doubleValue { product *= prob }
+            else if let probs = token["probs"] as? [[String: Any]], let first = probs.first,
+                    let prob = (first["prob"] as? NSNumber)?.doubleValue { product *= prob }
+            else { return nil }
+        }
+        return product
     }
 
     func rewrite(_ text: String, instruction: String, language: String?) async throws -> String {
@@ -123,6 +181,7 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
         object["max_tokens"] = maxTokens
         object["temperature"] = temperature
         object["stream"] = stream
+        object["cache_prompt"] = true   // llama-server: riusa il prompt già elaborato (Ollama ignora il campo)
         return (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
     }
 

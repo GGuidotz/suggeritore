@@ -14,7 +14,7 @@ enum Prompting {
             "You are an autocomplete engine. Write ONLY the text that comes next at the cursor.",
             "- No quotes, labels, explanations, markdown or emoji. Never repeat the text before the cursor.",
             "- Same language as the text (\(languageName(r.language))), same tone.",
-            "- Length: \(lengthHint(r.length)). Stop at the end of the sentence.",
+            "- Length: \(lengthHint(r.length, words: r.maxWords)). Stop at the end of the sentence.",
             "- Mid-word: finish the word, then go on. After a space: start with the next word. After a complete word or punctuation: start with a space.",
             "- If nothing fits, output nothing.",
         ]
@@ -23,6 +23,12 @@ enum Prompting {
         }
         if r.clipboard != nil {
             lines.append("- Use the clipboard only if it clearly helps (names, numbers, addresses).")
+        }
+        if r.screen != nil || r.windowTitle != nil {
+            lines.append("- The window text shows what the user is replying to or looking at (a message, a chat, a page): continue as a reply in that conversation, with its names, facts, dates and topic. Never copy it blindly.")
+        }
+        if !r.ownWriting.isEmpty {
+            lines.append("- Earlier texts by the user are given: prefer their words, phrases and style.")
         }
         let own = r.instructions.trimmingCharacters(in: .whitespacesAndNewlines)
         if !own.isEmpty {
@@ -36,7 +42,16 @@ enum Prompting {
     }
 
     static func completionPrompt(_ r: CompletionRequest) -> String {
+        // Prima ciò che cambia di rado (app, scritti tuoi, schermo, appunti), poi il testo: così l'inizio del prompt
+        // resta uguale tra una richiesta e l'altra e llama.cpp lo riprende dalla cache.
         var out = "App: \(r.context.appName.isEmpty ? "unknown" : r.context.appName)\n"
+        if let title = r.windowTitle { out += "Window: \(String(title.prefix(120)))\n" }
+        for (i, own) in r.ownWriting.enumerated() {
+            out += "Earlier text by the user (\(i + 1)):\n«\(own)»\n"
+        }
+        if let screen = r.screen, !screen.isEmpty {
+            out += "Text in the window:\n«\(String(screen.prefix(Self.maxScreen)))»\n"
+        }
         if let clip = r.clipboard, !clip.isEmpty {
             out += "Clipboard:\n«\(String(clip.prefix(500)))»\n"
         }
@@ -52,6 +67,41 @@ enum Prompting {
             out += "The text ends in the middle of the word \"\(r.context.partialWord)\". Complete it, then continue."
         }
         return out
+    }
+
+    /// Caratteri al massimo del testo dello schermo nel prompt.
+    static let maxScreen = 800
+
+    /// Il prompt per un modello base, che non segue istruzioni ma continua un documento: un'intestazione con le tue
+    /// istruzioni, i tuoi scritti, lo schermo e gli appunti, e poi il testo da continuare. L'intestazione cambia di
+    /// rado, quindi resta nella cache del prompt; senza niente da dire, il prompt è il testo e basta.
+    static func rawPrompt(_ r: CompletionRequest) -> String {
+        var header: [String] = []
+        let own = r.instructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !own.isEmpty { header.append("About the writer: \(own)") }
+        let forApp = r.appInstructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !forApp.isEmpty { header.append("Writing in \(r.context.appName.isEmpty ? "this app" : r.context.appName): \(forApp)") }
+        for piece in r.ownWriting { header.append("Earlier text by the same writer:\n\(piece)") }
+        // L'app e la finestra dicono che cosa si sta scrivendo (una risposta a una mail, un messaggio in una chat), il
+        // testo della finestra il "di che cosa": un modello base lo usa se lo vede come la conversazione a cui si risponde.
+        if let title = r.windowTitle {
+            let app = r.context.appName.isEmpty ? "" : "\(r.context.appName): "
+            header.append("\(app)\(String(title.prefix(120)))")
+        }
+        if let screen = r.screen, !screen.isEmpty { header.append("In the window (what the writer is replying to):\n\(String(screen.prefix(maxScreen)))") }
+        // Un modello base copia quello che vede: dagli appunti solo testo scritto, non codici, link o colonne di numeri.
+        if let clip = r.clipboard, isProse(clip) { header.append("Clipboard:\n\(String(clip.prefix(500)))") }
+        guard !header.isEmpty else { return r.context.before }
+        return header.joined(separator: "\n\n") + "\n\n---\nThe writer's text:\n" + r.context.before
+    }
+
+    /// Almeno quattro parole e soprattutto lettere.
+    static func isProse(_ text: String) -> Bool {
+        let sample = text.prefix(500)
+        let letters = sample.filter { $0.isLetter }.count
+        let visible = sample.filter { !$0.isWhitespace }.count
+        let words = sample.split(whereSeparator: { $0.isWhitespace }).filter { $0.contains(where: { $0.isLetter }) }.count
+        return words >= 4 && visible > 0 && Double(letters) / Double(visible) >= 0.7
     }
 
     private static let labels = ["Continuation:", "Completion:", "Output:", "Text:"]
@@ -89,7 +139,15 @@ enum Prompting {
         text = text.replacingOccurrences(of: "\r", with: "")
         if let newline = text.firstIndex(of: "\n") {
             let firstLine = text[..<newline].trimmingCharacters(in: .whitespaces)
-            text = firstLine.isEmpty ? String(text[text.index(after: newline)...]).components(separatedBy: "\n").first ?? "" : String(firstLine)
+            if firstLine.isEmpty {
+                // Il modello è andato a capo: la riga dopo vale solo se comincia con una parola (non "1.", "-", "*").
+                let next = (String(text[text.index(after: newline)...]).components(separatedBy: "\n").first ?? "")
+                    .trimmingCharacters(in: .whitespaces)
+                guard next.first?.isLetter == true else { return nil }
+                text = next
+            } else {
+                text = String(firstLine)
+            }
         }
         text = collapseSpaces(text)
 
@@ -110,7 +168,7 @@ enum Prompting {
 
         // Taglio a fine frase (solo a risposta finita) e a numero di parole.
         if final { text = cutToSentences(text, max: r.length.maxSentences) }
-        text = cutToWords(text, max: r.length.maxWords)
+        text = cutToWords(text, max: r.maxWords)
         text = text.replacingOccurrences(of: "\\s+$", with: "", options: .regularExpression)
         // Il seguito deve legarsi bene a ciò che viene dopo sulla riga.
         if final, let next = r.context.after.first, !next.isWhitespace, !next.isPunctuation, text.last?.isLetter == true {
@@ -118,6 +176,9 @@ enum Prompting {
         }
         let meaningful = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !meaningful.isEmpty, meaningful != "\"\"" else { return nil }
+        // Solo cifre o punteggiatura ("1", ".", "..."): non è un seguito, a meno di stare completando un numero.
+        let completingNumber = r.context.partialWord.last?.isNumber == true
+        if !completingNumber, !meaningful.contains(where: { $0.isLetter }) { return nil }
         return text
     }
 
@@ -163,11 +224,12 @@ enum Prompting {
         }
     }
 
-    private static func lengthHint(_ length: SuggestionLength) -> String {
+    private static func lengthHint(_ length: SuggestionLength, words: Int) -> String {
         switch length {
-        case .short: "very short: a few words, at most \(length.maxWords)"
-        case .medium: "short: one sentence, at most \(length.maxWords) words"
-        case .long: "at most two sentences, at most \(length.maxWords) words"
+        case .word: "only finish the word being typed, never add another word"
+        case .short: "very short: a few words, at most \(words)"
+        case .medium: "short: one sentence, at most \(words) words"
+        case .long: "at most two sentences, at most \(words) words"
         }
     }
 

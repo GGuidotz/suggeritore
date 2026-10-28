@@ -14,7 +14,7 @@ body:
     attributes:
       label: App, macOS, Mac
       description: Compilato dall'app (Impostazioni › Feedback). Filled in by the app (Settings › Feedback).
-      placeholder: Suggeritore 0.1.0 (12) · macOS 26.1 · Mac14,2 · it
+      placeholder: Type_w/Me 0.3.0 (12) · macOS 26.1 · Mac14,2 · it
   - type: textarea
     id: diagnostics
     attributes:

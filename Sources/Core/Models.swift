@@ -49,15 +49,47 @@ struct TextContext: Equatable {
         copy.before = cut
         return copy
     }
+
+    /// Come `limited(to:)`, ma con l'inizio ancorato a posizioni fisse del documento (multipli di `step`, in unità
+    /// UTF-16 come il cursore): mentre scrivi l'inizio del testo mandato al modello resta lo stesso per centinaia di
+    /// tasti, così llama.cpp riusa il prompt già elaborato invece di rifarlo a ogni richiesta. Tra `max - step` e
+    /// `max` unità. `caret` è la posizione del cursore nel campo; `before` deve finire lì.
+    func anchored(caret: Int, max: Int, step: Int = 256) -> TextContext {
+        let units = before.utf16
+        guard max > step, step > 0, caret >= units.count, units.count > max - step else { return self }
+        let readStart = caret - units.count
+        // Il primo multiplo di `step` da cui restano al massimo `max` unità fino al cursore.
+        let lowest = caret - max
+        let anchor = lowest <= 0 ? 0 : ((lowest + step - 1) / step) * step
+        let drop = anchor - readStart
+        guard drop > 0 else { return self }
+        var index = units.index(units.startIndex, offsetBy: drop)
+        // Mai a metà di un carattere fatto di due unità.
+        while index < units.endIndex, String.Index(index, within: before) == nil { index = units.index(after: index) }
+        guard let start = String.Index(index, within: before) else { return self }
+        var cut = String(before[start...])
+        // Via il pezzo di parola tagliato all'inizio (deterministico: stesso inizio, stesso taglio).
+        let previous = before[..<start].last
+        let atBoundary = previous.map { $0.isWhitespace || $0.isNewline } ?? true
+        if !atBoundary, let space = cut.firstIndex(where: { $0.isWhitespace || $0.isNewline }) {
+            let rest = cut[cut.index(after: space)...]
+            if !rest.isEmpty { cut = String(rest) }
+        }
+        var copy = self
+        copy.before = cut
+        return copy
+    }
 }
 
 /// Quanto lungo deve essere un suggerimento.
 enum SuggestionLength: String, CaseIterable, Codable, Identifiable {
-    case short, medium, long
+    /// Solo la parola che stai scrivendo: aiuto all'ortografia, mai la parola dopo.
+    case word, short, medium, long
     var id: String { rawValue }
 
     var title: String {
         switch self {
+        case .word: L("Parola")
         case .short: L("Breve")
         case .medium: L("Media")
         case .long: L("Lunga")
@@ -66,6 +98,7 @@ enum SuggestionLength: String, CaseIterable, Codable, Identifiable {
 
     var detail: String {
         switch self {
+        case .word: L("Solo la parola che stai scrivendo, mai quella dopo.")
         case .short: L("Poche parole, fino a fine frase.")
         case .medium: L("Una frase intera.")
         case .long: L("Fino a due frasi.")
@@ -75,6 +108,7 @@ enum SuggestionLength: String, CaseIterable, Codable, Identifiable {
     /// Parole al massimo nel suggerimento mostrato.
     var maxWords: Int {
         switch self {
+        case .word: 1
         case .short: 6
         case .medium: 14
         case .long: 30
@@ -86,6 +120,19 @@ enum SuggestionLength: String, CaseIterable, Codable, Identifiable {
 
     /// Token da chiedere al modello (un po' più delle parole, per la punteggiatura).
     var maxTokens: Int { maxWords * 2 + 8 }
+
+    /// Parole al massimo scelte con lo slider (1...maxSlider).
+    static let maxSlider = 20
+
+    /// Lo stile che va con un numero massimo di parole: 1 è solo la parola in corso, poi breve, media, lunga.
+    static func forWords(_ words: Int) -> SuggestionLength {
+        switch words {
+        case ...1: .word
+        case 2...6: .short
+        case 7...14: .medium
+        default: .long
+        }
+    }
 }
 
 /// Tutto ciò che serve a un motore per proporre il seguito.
@@ -100,6 +147,17 @@ struct CompletionRequest {
     var appInstructions: String = ""
     /// Gli appunti, se l'utente ha scelto di usarli come contesto.
     var clipboard: String?
+    /// Il testo riconosciuto nella finestra in primo piano (Contesto dallo schermo), se acceso.
+    var screen: String?
+    /// Pezzi di testo scritti prima da chi usa l'app, nella stessa app (Personalizzazione), per imitarne le parole.
+    var ownWriting: [String] = []
+    /// Parole al massimo scelte con lo slider; 0: quelle della lunghezza.
+    var wordLimit: Int = 0
+    /// Il titolo della finestra in cui si scrive (oggetto della mail, nome del documento, chat), se Contesto dall'app.
+    var windowTitle: String?
+
+    var maxWords: Int { wordLimit > 0 ? wordLimit : length.maxWords }
+    var maxTokens: Int { maxWords * 2 + 8 }
 }
 
 enum SuggestionSource: String {

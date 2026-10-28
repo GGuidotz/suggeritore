@@ -1,8 +1,12 @@
-# Suggeritore
+# Type_w/Me
 
 App macOS per la barra dei menu (Swift/SwiftUI, macOS 26+) che suggerisce il seguito di ciò che scrivi in qualunque
 app: testo grigio dopo il cursore, Tab per accettare. Tutto sul Mac. Stesso schema di GGuidotz/whats-going-on e di Nod.
 
+- Nome: visibile Type_w/Me; su disco TypeWithMe (lo slash non può stare nei nomi di file: TypeWithMe.app, eseguibile,
+  DMG, cartella in Application Support, cask `typewithme`); bundle id com.gguidotz.typewithme; repository
+  GGuidotz/typewithme. Le costanti stanno in `Sources/Core/AppInfo.swift`. Prima l'app si chiamava Suggeritore
+  (local.suggeritore.app): la migrazione di preferenze e memoria delle frasi è in `Sources/App/Migration.swift`.
 - Compilazione: `./build.sh` (swiftc diretto, niente progetto Xcode). Firma con l'identità locale di Nod
   (~/.nod-signing) se c'è, altrimenti ad hoc: serve perché macOS ricordi i permessi Accessibilità e Monitoraggio input.
   Nel cloud Swift non compila: ogni modifica la prova Giulio sul Mac con `./build.sh --install`. Rileggi il codice con
@@ -11,7 +15,7 @@ app: testo grigio dopo il cursore, Tab per accettare. Tutto sul Mac. Stesso sche
 - `Sources/Core` non importa SwiftUI né AppKit (solo Foundation): regole, memoria delle frasi, costruzione dei prompt,
   pulizia delle risposte, abbreviazioni, catalogo dei modelli. `Sources/App` è AppKit e SwiftUI; `Sources/App/Input`
   legge il campo (Accessibilità), intercetta i tasti (CGEventTap) e inserisce il testo; `Sources/App/Engines` i motori.
-  `Sources/Island` è la vista compatta dello stato (solo SwiftUI e dati semplici, `SuggeritoreStatusInfo`, colori
+  `Sources/Island` è la vista compatta dello stato (solo SwiftUI e dati semplici, `Type_w/MeStatusInfo`, colori
   suoi): niente Completer né `Palette`, così si riusa nell'isola di Cocaine.
 - Motori dietro il protocollo `CompletionEngine` (con `partial` per lo streaming e `contextLimit`): Gemma via HTTP su
   localhost (`LlamaEngine`, endpoint OpenAI `/v1/chat/completions`, sia il nostro `llama-server` gestito da
@@ -31,3 +35,7 @@ app: testo grigio dopo il cursore, Tab per accettare. Tutto sul Mac. Stesso sche
 - Leggerezza: a tastiera ferma l'app non fa nulla; una richiesta al modello solo dopo una pausa, annullata se riprendi a
   scrivere; niente letture del campo a ogni tasto oltre a quelle necessarie.
 - Repository pubblico: mai dati reali nei testi, negli esempi o nei test (esempi inventati: Marta, Luca, Nexa, Studio Rossi).
+- Dalla 0.3.0: llama-server incluso in Contents/Helpers/llama (build.sh, release scelta in packaging/llama.cpp-version),
+  contesto dallo schermo (`Sources/App/Input/ScreenContext.swift`, solo in memoria), contesto dall'app via Accessibilità (`Sources/App/Input/WindowText.swift`, fermo per campo per non rompere la cache), cronologia di scrittura cifrata
+  (`Sources/App/TypingHistory.swift`, AES-GCM con chiave nel Portachiavi). Per Gemma il testo prima del cursore ha
+  l'inizio ancorato (`TextContext.anchored`): non cambiarlo in una finestra che scorre, romperebbe la cache del prompt.

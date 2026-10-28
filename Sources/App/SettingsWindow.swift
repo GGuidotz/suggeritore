@@ -6,7 +6,7 @@ import AppKit
 import SwiftUI
 
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case general, suggestions, apps, engines, updates, feedback
+    case general, suggestions, apps, personalization, engines, updates, feedback
     var id: String { rawValue }
 
     var title: String {
@@ -14,6 +14,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .general: L("Generale")
         case .suggestions: L("Suggerimenti")
         case .apps: L("App")
+        case .personalization: L("Personalizzazione")
         case .engines: L("Motori")
         case .updates: L("Aggiornamenti")
         case .feedback: L("Feedback")
@@ -25,6 +26,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .general: "gearshape"
         case .suggestions: "text.cursor"
         case .apps: "macwindow.on.rectangle"
+        case .personalization: "person.text.rectangle"
         case .engines: "cpu"
         case .updates: "arrow.down.circle"
         case .feedback: "bubble.left.and.text.bubble.right"
@@ -42,7 +44,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             w.delegate = self
             window = w
         }
-        window?.title = L("Impostazioni di Suggeritore")   // per Mission Control e VoiceOver, anche dopo un cambio di lingua
+        window?.title = L("Impostazioni di Type_w/Me")   // per Mission Control e VoiceOver, anche dopo un cambio di lingua
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
     }

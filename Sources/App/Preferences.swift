@@ -25,6 +25,14 @@ final class Preferences: ObservableObject {
     /// Il motore scelto. Chiave nuova dalla 0.2.0: "Automatico" è il predefinito anche per chi aveva Apple Intelligence.
     @Published var engine: EngineChoice { didSet { save(engine, "engineChoice") } }
     @Published var length: SuggestionLength { didSet { save(length, "length") } }
+    /// Parole al massimo nel suggerimento (slider, 1...20). Decide anche la lunghezza: 1 è solo la parola in corso.
+    @Published var maxWords: Int {
+        didSet {
+            defaults.set(maxWords, forKey: "maxWords")
+            let style = SuggestionLength.forWords(maxWords)
+            if length != style { length = style }
+        }
+    }
     /// Secondi di pausa prima di chiedere un suggerimento.
     @Published var delay: Double { didSet { defaults.set(delay, forKey: "delay") } }
     @Published var acceptWord: KeyBinding { didSet { save(acceptWord, "acceptWord") } }
@@ -41,6 +49,20 @@ final class Preferences: ObservableObject {
     /// Gli appunti come contesto per il modello: lo si sceglie nella guida al primo avvio.
     @Published var clipboardContext: Bool { didSet { defaults.set(clipboardContext, forKey: "clipboardContext") } }
     @Published var clipboardDecided: Bool { didSet { defaults.set(clipboardDecided, forKey: "clipboardDecided") } }
+    /// Il testo visibile nella finestra in primo piano come contesto (serve il permesso Registrazione schermo).
+    @Published var screenContext: Bool { didSet { defaults.set(screenContext, forKey: "screenContext") } }
+    /// Il titolo e il testo della finestra in cui scrivi, letti con Accessibilità: acceso in partenza.
+    @Published var appContext: Bool { didSet { defaults.set(appContext, forKey: "appContext") } }
+    /// Niente suggerimento quando la parola che stai scrivendo sembra già sbagliata.
+    @Published var hideOnTypo: Bool { didSet { defaults.set(hideOnTypo, forKey: "hideOnTypo") } }
+    /// A batteria: pausa più lunga, niente contesto dallo schermo, modello spento dopo i minuti di inattività.
+    @Published var batterySaver: Bool { didSet { defaults.set(batterySaver, forKey: "batterySaver") } }
+    /// Cronologia di scrittura (Personalizzazione): cifrata, solo sul Mac.
+    @Published var recordHistory: Bool { didSet { defaults.set(recordHistory, forKey: "recordHistory") } }
+    /// Registra il testo anche nei campi dove non hai accettato nessun suggerimento.
+    @Published var recordWithoutAccepting: Bool { didSet { defaults.set(recordWithoutAccepting, forKey: "recordWithoutAccepting") } }
+    /// Quanto i suggerimenti imitano le tue parole: 0 spento, 1 leggero, 2 medio, 3 forte.
+    @Published var wordChoice: Int { didSet { defaults.set(wordChoice, forKey: "wordChoice") } }
     /// Bundle id delle app dove non suggerire mai.
     @Published var excludedApps: Set<String> { didSet { save(Array(excludedApps).sorted(), "excludedApps") } }
     /// Una frase di istruzioni per il modello (tono, stile).
@@ -50,6 +72,9 @@ final class Preferences: ObservableObject {
     /// Il modello di Gemma scelto (ModelCatalog) e quelli aggiunti da chi usa l'app.
     @Published var selectedModelID: String { didSet { defaults.set(selectedModelID, forKey: "selectedModelID") } }
     @Published var customModels: [ModelEntry] { didSet { save(customModels, "customModels") } }
+    /// Il modello resta caricato finché l'app è aperta (alla corrente): il primo suggerimento dopo una pausa non aspetta
+    /// l'avvio del server. Spento: il server si spegne dopo `llamaIdleMinutes`.
+    @Published var keepModelLoaded: Bool { didSet { defaults.set(keepModelLoaded, forKey: "keepModelLoaded") } }
     /// Minuti senza richieste prima di spegnere il server di llama.cpp.
     @Published var llamaIdleMinutes: Double { didSet { defaults.set(llamaIdleMinutes, forKey: "llamaIdleMinutes") } }
     /// Se Ollama è aperto e ha il modello, si usa lui invece di avviare llama-server.
@@ -81,8 +106,19 @@ final class Preferences: ObservableObject {
         // Dalla 0.1.0 resta solo "Solo regole e memoria", che era una scelta; Apple Intelligence era il predefinito.
         let old: EngineChoice? = load("engine", Optional<EngineChoice>.none)
         engine = load("engineChoice", old == .rulesOnly ? EngineChoice.rulesOnly : EngineChoice.auto)
-        length = load("length", SuggestionLength.medium)
-        delay = d.object(forKey: "delay") as? Double ?? 0.35
+        // Dalla 0.3.0 lo slider: chi aveva scelto una lunghezza parte dal suo numero di parole (al massimo 20).
+        let savedLength = load("length", SuggestionLength.medium)
+        let words = min(max(d.object(forKey: "maxWords") as? Int ?? savedLength.maxWords, 1), SuggestionLength.maxSlider)
+        maxWords = words
+        length = SuggestionLength.forWords(words)
+        // Dalla 0.3.0 la pausa predefinita è 120 ms: la richiesta si annulla comunque se riprendi a scrivere. Chi
+        // aveva il vecchio predefinito (350 ms) passa al nuovo una volta sola.
+        var savedDelay = d.object(forKey: "delay") as? Double
+        if !d.bool(forKey: "delayDefault030") {
+            d.set(true, forKey: "delayDefault030")
+            if let old = savedDelay, abs(old - 0.35) < 0.001 { savedDelay = nil; d.removeObject(forKey: "delay") }
+        }
+        delay = savedDelay ?? 0.12
         acceptWord = load("acceptWord", KeyBinding.tab)
         acceptAll = load("acceptAll", KeyBinding.shiftTab)
         dismiss = load("dismiss", KeyBinding.escape)
@@ -94,11 +130,19 @@ final class Preferences: ObservableObject {
         abbreviations = load("abbreviations", [Abbreviation]())
         clipboardContext = d.bool(forKey: "clipboardContext")
         clipboardDecided = d.bool(forKey: "clipboardDecided")
+        screenContext = d.bool(forKey: "screenContext")
+        appContext = d.object(forKey: "appContext") as? Bool ?? true
+        hideOnTypo = d.object(forKey: "hideOnTypo") as? Bool ?? true
+        batterySaver = d.object(forKey: "batterySaver") as? Bool ?? true
+        recordHistory = d.bool(forKey: "recordHistory")
+        recordWithoutAccepting = d.object(forKey: "recordWithoutAccepting") as? Bool ?? true
+        wordChoice = d.object(forKey: "wordChoice") as? Int ?? 1
         excludedApps = Set(load("excludedApps", Exclusions.defaults))
         instructions = d.string(forKey: "instructions") ?? ""
         appInstructions = load("appInstructions", [String: String]())
         selectedModelID = d.string(forKey: "selectedModelID") ?? ModelCatalog.defaultID
         customModels = load("customModels", [ModelEntry]())
+        keepModelLoaded = d.object(forKey: "keepModelLoaded") as? Bool ?? true
         llamaIdleMinutes = d.object(forKey: "llamaIdleMinutes") as? Double ?? 10
         useOllama = d.object(forKey: "useOllama") as? Bool ?? true
         llamaServerPath = d.string(forKey: "llamaServerPath")

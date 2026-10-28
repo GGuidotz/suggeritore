@@ -92,7 +92,8 @@ final class LlamaServer: ObservableObject {
 
     // MARK: - Che cosa c'è
 
-    /// Il percorso di llama-server: quello scelto (un file o la cartella che lo contiene), altrimenti Homebrew.
+    /// Il percorso di llama-server: quello scelto (un file o la cartella che lo contiene), poi quello incluso nell'app,
+    /// poi Homebrew.
     static func findExecutable(custom: String?) -> String? {
         let fm = FileManager.default
         if let custom = custom?.trimmingCharacters(in: .whitespacesAndNewlines), !custom.isEmpty {
@@ -105,12 +106,26 @@ final class LlamaServer: ObservableObject {
                 return expanded
             }
         }
+        if let bundled = bundledExecutable { return bundled }
         for directory in Homebrew.binDirectories {
             let path = directory + "/llama-server"
             if fm.isExecutableFile(atPath: path) { return path }
         }
         return nil
     }
+
+    /// Il llama-server incluso nell'app (build.sh lo mette in Contents/Helpers/llama), solo su Apple silicon.
+    static var bundledExecutable: String? {
+        #if arch(arm64)
+        let path = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/llama/llama-server").path
+        return FileManager.default.isExecutableFile(atPath: path) ? path : nil
+        #else
+        return nil
+        #endif
+    }
+
+    /// La versione di llama.cpp inclusa nell'app ("b6500"), nil se non c'è.
+    static var bundledTag: String? { bundledExecutable == nil ? nil : Bundle.main.infoDictionary?["SGRLlamaTag"] as? String }
 
     /// Ricontrolla se llama.cpp è installato (dopo "Installa nel Terminale", a finestra aperta).
     func refreshInstalled() {
@@ -261,7 +276,9 @@ final class LlamaServer: ObservableObject {
         // Da verificare sul Mac con la versione di Homebrew: --no-webui e --cache-reuse ci sono nelle versioni del
         // 2025; se llama-server li rifiuta, il tentativo dopo parte senza.
         var arguments = ["--host", "127.0.0.1", "--port", "\(port)"] + source + ["-c", "2048", "-ngl", "99"]
-        if !minimalArguments { arguments += ["--no-webui", "--cache-reuse", "256"] }
+        // Un solo slot: ogni richiesta trova la cache del prompt di quella prima. --swa-full: Gemma 3 usa
+        // l'attenzione a finestra scorrevole e senza una cache piena llama.cpp rifà tutto il prompt a ogni richiesta.
+        if !minimalArguments { arguments += ["--no-webui", "--cache-reuse", "256", "-np", "1", "--swa-full"] }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: path)
         p.arguments = arguments
@@ -386,11 +403,16 @@ final class LlamaServer: ObservableObject {
     }
 
     private func checkIdle() {
+        // Modello sempre pronto: si spegne solo con l'app (o a batteria, se chi usa l'app lo chiede).
+        if prefs.keepModelLoaded, !shouldSaveEnergy { return }
         let idle = Date().timeIntervalSince(lastUse)
         guard idle > max(1, prefs.llamaIdleMinutes) * 60 else { return }
         diag(.engine, "gemma stopped after \(Int(idle / 60)) idle minutes")
         stop()
     }
+
+    /// Vero quando conviene non tenere il modello in memoria senza motivo: a batteria, se la modalità batteria è accesa.
+    var shouldSaveEnergy: Bool { prefs.batterySaver && Power.shouldSave }
 
     // MARK: - Registro
 

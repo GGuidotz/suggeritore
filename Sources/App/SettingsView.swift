@@ -22,6 +22,7 @@ struct SettingsView: View {
             case .general: GeneralSettings(model: model, prefs: prefs, completer: model.completer)
             case .suggestions: SuggestionSettings(prefs: prefs, completer: model.completer)
             case .apps: AppsSettings(prefs: prefs, completer: model.completer)
+            case .personalization: PersonalizationSettings(prefs: prefs, history: model.completer.history)
             case .engines: EngineSettings(prefs: prefs, completer: model.completer, llama: model.completer.llama)
             case .updates: UpdatesSettings(updater: model.updater, prefs: prefs)
             case .feedback: FeedbackSettings(model: model)
@@ -65,13 +66,13 @@ private struct GeneralSettings: View {
     var body: some View {
         Form {
             Section {
-                SuggeritoreStatusView(info: completer.statusInfo, labels: .localized)
+                TypeWithMeStatusView(info: completer.statusInfo, labels: .localized)
             }
 
             if let stats = cotypistStats {
                 Section {
                     Text(L("Cotypist ha contato %@ parole accettate in %d giorni.", Format.integer(stats.words), stats.days))
-                    Button(prefs.cotypistImported ? L("Già aggiunte al contatore") : L("Aggiungi al contatore di Suggeritore")) {
+                    Button(prefs.cotypistImported ? L("Già aggiunte al contatore") : L("Aggiungi al contatore di Type_w/Me")) {
                         prefs.acceptedWordsTotal += stats.words
                         prefs.cotypistImported = true
                         diag(.app, "cotypist stats imported")
@@ -98,7 +99,7 @@ private struct GeneralSettings: View {
                     ForEach(AppLanguage.allCases) { Text($0.title).tag($0) }
                 }
             } footer: {
-                Footnote(L("La lingua è quella dell'interfaccia di Suggeritore. I suggerimenti seguono la lingua in cui stai scrivendo."))
+                Footnote(L("La lingua è quella dell'interfaccia di Type_w/Me. I suggerimenti seguono la lingua in cui stai scrivendo."))
             }
 
             Section {
@@ -111,7 +112,7 @@ private struct GeneralSettings: View {
             } header: {
                 Text(L("Permessi"))
             } footer: {
-                Footnote(L("Niente esce dal Mac: i permessi servono solo a leggere il campo con il fuoco e a scriverci. Dopo averli concessi, se la voce nella barra resta chiara, riapri Suggeritore."))
+                Footnote(L("Niente esce dal Mac: i permessi servono solo a leggere il campo con il fuoco e a scriverci. Dopo averli concessi, se la voce nella barra resta chiara, riapri Type_w/Me."))
             }
             .onReceive(Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()) { _ in
                 accessibility = Permissions.accessibility
@@ -120,7 +121,7 @@ private struct GeneralSettings: View {
             }
 
             Section {
-                LabeledContent(L("Consumo di Suggeritore")) {
+                LabeledContent(L("Consumo di Type_w/Me")) {
                     Text(usage.map { L("%@ di CPU · %@", Format.percent($0.cpu), Format.bytes($0.memory)) } ?? "–")
                         .monospacedDigit()
                 }
@@ -135,10 +136,10 @@ private struct GeneralSettings: View {
     }
 }
 
-extension SuggeritoreStatusLabels {
+extension TypeWithMeStatusLabels {
     /// I testi della vista compatta nella lingua scelta per l'app.
-    static var localized: SuggeritoreStatusLabels {
-        var labels = SuggeritoreStatusLabels()
+    static var localized: TypeWithMeStatusLabels {
+        var labels = TypeWithMeStatusLabels()
         labels.engine = L("Motore")
         labels.today = L("Parole oggi")
         labels.total = L("Da sempre")
@@ -205,14 +206,10 @@ private struct SuggestionSettings: View {
             }
 
             Section {
-                Picker(L("Lunghezza"), selection: $prefs.length) {
-                    ForEach(SuggestionLength.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                Footnote(prefs.length.detail)
+                WordLimitSlider(prefs: prefs)
                 LabeledContent(L("Aspetta prima di suggerire")) {
                     HStack(spacing: 10) {
-                        Slider(value: $prefs.delay, in: 0.15...1.5, step: 0.05)
+                        Slider(value: $prefs.delay, in: 0.05...1.0, step: 0.01)
                             .frame(width: 180)
                             .accessibilityLabel(L("Aspetta prima di suggerire"))
                             .accessibilityValue(L("%d ms", Int(prefs.delay * 1000)))
@@ -223,10 +220,12 @@ private struct SuggestionSettings: View {
                     }
                 }
                 Toggle(L("Completa anche a metà riga (sperimentale)"), isOn: $prefs.midLine)
+                Toggle(L("Niente suggerimenti se la parola sembra sbagliata"), isOn: $prefs.hideOnTypo)
+                Toggle(L("A batteria, risparmia energia"), isOn: $prefs.batterySaver)
             } header: {
                 Text(L("Quando e quanto"))
             } footer: {
-                Footnote(L("Il suggerimento arriva dopo una pausa nella scrittura. A metà riga il seguito deve raccordarsi con il testo che c'è dopo il cursore: funziona, ma non sempre bene."))
+                Footnote(L("Il suggerimento arriva dopo una pausa nella scrittura. A metà riga il seguito deve raccordarsi con il testo che c'è dopo il cursore: funziona, ma non sempre bene. Con una parola che sembra sbagliata il suggerimento la allungherebbe con l'errore: meglio niente. A batteria la pausa si allunga della metà, lo schermo non si legge e il modello si spegne dopo i minuti di inattività scelti in Motori."))
             }
 
             Section {
@@ -345,11 +344,29 @@ private struct AppsSettings: View {
     var body: some View {
         Form {
             Section {
+                Toggle(L("Usa l'app in cui scrivi come contesto"), isOn: $prefs.appContext)
                 Toggle(L("Usa gli appunti come contesto"), isOn: $prefs.clipboardContext)
+                Toggle(L("Usa lo schermo come contesto"), isOn: Binding(
+                    get: { prefs.screenContext },
+                    set: { on in
+                        prefs.screenContext = on
+                        if on, !ScreenContext.hasPermission { ScreenContext.requestPermission() }
+                    }))
+                if prefs.screenContext, !ScreenContext.hasPermission {
+                    HStack {
+                        Text(L("Serve il permesso Registrazione schermo.")).foregroundStyle(.secondary)
+                        Spacer()
+                        Button(L("Apri Impostazioni di Sistema")) {
+                            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                    }
+                }
             } header: {
                 Text(L("Contesto"))
             } footer: {
-                Footnote(L("Con gli appunti il modello vede anche l'ultima cosa che hai copiato (nomi, numeri, indirizzi) e la usa se c'entra. Tutto resta sul Mac. Spento, gli appunti non vengono letti mai."))
+                Footnote(L("Con l'app il modello legge con Accessibilità il titolo e il testo della finestra in cui scrivi (la mail o la chat a cui rispondi, la pagina), senza il campo in cui scrivi, al più ogni pochi secondi: niente permessi in più. Con gli appunti il modello vede anche l'ultima cosa che hai copiato (nomi, numeri, indirizzi) e la usa se c'entra. Con lo schermo legge il testo della finestra in cui scrivi (una mail a cui rispondi, una pagina), riconosciuto sul Mac, al più ogni pochi secondi e mai a ogni tasto; il testo resta in memoria e non si salva. Spenti, appunti e schermo non vengono letti mai. Dopo aver concesso il permesso può servire riaprire l'app."))
             }
 
             Section {
@@ -378,7 +395,7 @@ private struct AppsSettings: View {
             } header: {
                 Text(L("App escluse"))
             } footer: {
-                Footnote(L("Qui Suggeritore non legge e non scrive mai. Nei campi password e con l'input sicuro acceso non lo fa comunque, in nessuna app. Dal menu nella barra puoi spegnere l'app in cui ti trovi."))
+                Footnote(L("Qui Type_w/Me non legge e non scrive mai. Nei campi password e con l'input sicuro acceso non lo fa comunque, in nessuna app. Dal menu nella barra puoi spegnere l'app in cui ti trovi."))
             }
 
             AppInstructionsSection(prefs: prefs, running: running)
@@ -518,7 +535,7 @@ private struct UpdateStateText: View {
         case .idle: EmptyView()
         case .checking: ProgressView().controlSize(.small)
         case .upToDate:
-            Label(L("Suggeritore è aggiornato."), systemImage: "checkmark.circle.fill").foregroundStyle(Palette.calm)
+            Label(L("Type_w/Me è aggiornato."), systemImage: "checkmark.circle.fill").foregroundStyle(Palette.calm)
         case .available(let version):
             Label(L("Disponibile la versione %@", version), systemImage: "arrow.down.circle.fill").foregroundStyle(Color.accentColor)
         case .failed(let why):
@@ -534,7 +551,7 @@ private struct UpdateCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if case .available(let version) = updater.state {
-                Label(L("Disponibile Suggeritore %@", version), systemImage: "arrow.down.circle.fill")
+                Label(L("Disponibile Type_w/Me %@", version), systemImage: "arrow.down.circle.fill")
                     .font(.headline)
             }
             if !updater.news.isEmpty { ChangelogList(entries: updater.news) }
@@ -573,7 +590,7 @@ private struct FeedbackSettings: View {
                         .frame(width: 72, height: 72)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Suggeritore").font(.title2.weight(.semibold)).fontDesign(.rounded)
+                        Text(AppInfo.name).font(.title2.weight(.semibold)).fontDesign(.rounded)
                         Text(L("Versione %@", "\(SystemInfo.version) (\(SystemInfo.build))")).foregroundStyle(.secondary)
                         Text(L("Il seguito di quello che scrivi, in ogni app del Mac.")).foregroundStyle(.secondary)
                     }
@@ -658,5 +675,31 @@ private struct FeedbackButton: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isLink)
+    }
+}
+
+/// Le parole al massimo nel suggerimento, da 1 (solo la parola in corso) a 20. Il modello si ferma prima se non è sicuro.
+struct WordLimitSlider: View {
+    @ObservedObject var prefs: Preferences
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            LabeledContent(L("Parole al massimo")) {
+                HStack(spacing: 10) {
+                    Slider(value: Binding(get: { Double(prefs.maxWords) }, set: { prefs.maxWords = Int($0.rounded()) }),
+                           in: 1...Double(SuggestionLength.maxSlider), step: 1)
+                        .frame(width: 180)
+                        .accessibilityLabel(L("Parole al massimo"))
+                        .accessibilityValue("\(prefs.maxWords)")
+                    Text("\(prefs.maxWords)")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 60, alignment: .trailing)
+                }
+            }
+            Footnote(prefs.maxWords == 1
+                     ? L("Solo la parola che stai scrivendo, mai quella dopo.")
+                     : L("Fino a %d parole: il suggerimento si ferma prima se il modello non è sicuro della parola dopo.", prefs.maxWords))
+        }
     }
 }

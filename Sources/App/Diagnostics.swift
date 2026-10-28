@@ -69,9 +69,9 @@ enum SystemInfo {
     static var build: String { info["CFBundleVersion"] as? String ?? "?" }
     static var commit: String { info["SGRGitCommit"] as? String ?? "?" }
 
-    /// Una riga per le email e le segnalazioni: "Suggeritore 0.1.0 (12) · macOS 26.1 · Mac14,2 · it".
+    /// Una riga per le email e le segnalazioni: "Type_w/Me 0.1.0 (12) · macOS 26.1 · Mac14,2 · it".
     static var oneLine: String {
-        "Suggeritore \(version) (\(build)) · macOS \(macOS) · \(model) · \(Localization.effectiveCode)"
+        "\(AppInfo.name) \(version) (\(build)) · macOS \(macOS) · \(model) · \(Localization.effectiveCode)"
     }
 }
 
@@ -84,7 +84,7 @@ enum DiagnosticsReport {
         func yesNo(_ b: Bool) -> String { b ? "yes" : "no" }
 
         let prefs = model.prefs, completer = model.completer
-        out.append("# Suggeritore diagnostics")
+        out.append("# \(AppInfo.name) diagnostics")
         row("Generated", DiagnosticsLog.stamp(Date()))
 
         section("App")
@@ -112,6 +112,7 @@ enum DiagnosticsReport {
         row("Apple Intelligence", AppleEngine.unavailableReason ?? "available")
         let customPath = prefs.llamaServerPath == nil ? "" : " (custom path set)"
         row("llama.cpp installed", yesNo(llama.isInstalled) + customPath)
+        row("llama.cpp bundled", LlamaServer.bundledTag ?? "no")
         var server = llama.state.diagnostic
         if let backend = llama.backend { server += " via " + backend.rawValue }
         row("Gemma server", server)
@@ -129,19 +130,27 @@ enum DiagnosticsReport {
         } else {
             row("Average response", "none yet")
         }
+        row("Latency", completer.latencySummary ?? "none yet")
+        row("Ghost without caret", "\(completer.overlay.noCaret)")
+        row("Keep model loaded", yesNo(prefs.keepModelLoaded))
         row("Status", "\(completer.status)")
         if let error = completer.lastError { row("Last model error", error) }
         for line in llama.recentLog { row("Server log", line) }
 
         section("Preferences")
         row("Enabled", yesNo(prefs.enabled))
-        row("Length", prefs.length.rawValue)
+        row("Length", "\(prefs.length.rawValue), up to \(prefs.maxWords) words")
         row("Delay", "\(Int(prefs.delay * 1000)) ms")
         row("Keys", "word \(prefs.acceptWord.display), all \(prefs.acceptAll.display), dismiss \(prefs.dismiss.display), rewrite \(prefs.rewrite.display)")
         row("Mid-line", yesNo(prefs.midLine))
         row("Italian corrections", "\(yesNo(prefs.italianCorrections)), capitalize \(yesNo(prefs.capitalizeSentences))")
         row("Phrase memory", "\(yesNo(prefs.phraseMemory)), \(completer.memory.count) entries")
         row("Clipboard as context", yesNo(prefs.clipboardContext))
+        row("App as context", "\(yesNo(prefs.appContext)), \(completer.windowText.reads) reads, last \(completer.windowText.lastCharacters) characters")
+        row("Screen as context", "\(yesNo(prefs.screenContext)), permission \(yesNo(ScreenContext.hasPermission)), \(completer.screen.captures) captures" + (completer.screen.lastDurationMs.map { ", last \($0) ms" } ?? ""))
+        row("Hide on typo", yesNo(prefs.hideOnTypo))
+        row("Battery saver", "\(yesNo(prefs.batterySaver)), on battery now \(yesNo(Power.onBattery))")
+        row("Typing history", "\(yesNo(prefs.recordHistory)), \(completer.history.count) entries, without accepting \(yesNo(prefs.recordWithoutAccepting)), word choice \(prefs.wordChoice)")
         row("Excluded apps", "\(prefs.excludedApps.count)")
         row("Custom instructions", prefs.instructions.isEmpty ? "none" : "\(prefs.instructions.count) characters")
         row("App instructions", "\(prefs.appInstructions.count) apps")
@@ -177,6 +186,6 @@ enum DiagnosticsReport {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd-HHmm"
-        return "Suggeritore-diagnostics-\(f.string(from: Date())).txt"
+        return "\(AppInfo.fileName)-diagnostics-\(f.string(from: Date())).txt"
     }
 }

@@ -14,7 +14,7 @@ final class PhraseMemory {
     /// chiave "parola1 parola2" → seguito → conteggio
     private var table: [String: [String: Entry]] = [:]
     private let url: URL
-    private let queue = DispatchQueue(label: "local.suggeritore.phrases", qos: .utility)
+    private let queue = DispatchQueue(label: "\(AppInfo.bundleID).phrases", qos: .utility)
     private var saveScheduled = false
 
     static let minCount = 2
@@ -24,7 +24,7 @@ final class PhraseMemory {
 
     init(directory: URL? = nil) {
         let base = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("Suggeritore", isDirectory: true)
+            .appendingPathComponent(AppInfo.supportFolder, isDirectory: true)
         url = base.appendingPathComponent("phrases.json")
         load()
     }

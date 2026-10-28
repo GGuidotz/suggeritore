@@ -1,10 +1,10 @@
 #!/bin/zsh
-# Compila "Suggeritore.app" (universale arm64 + x86_64, macOS 26+) con gli strumenti a riga di comando: niente
+# Compila "TypeWithMe.app" (Type_w/Me: lo slash non può stare nei nomi di file) (universale arm64 + x86_64, macOS 26+) con gli strumenti a riga di comando: niente
 # progetto Xcode, come What's Going On e Nod.
-#   ./build.sh              build/Suggeritore.app
+#   ./build.sh              build/TypeWithMe.app
 #   ./build.sh --install    e la copia in /Applications (chiude la copia aperta) e la apre
-#   ./build.sh --dmg        e crea dist/Suggeritore-<versione>.dmg
-#   SUGGERITORE_ICON=classic ./build.sh …   usa l'icona classica anche se c'è Xcode
+#   ./build.sh --dmg        e crea dist/TypeWithMe-<versione>.dmg
+#   TYPEWITHME_ICON=classic ./build.sh …   usa l'icona classica anche se c'è Xcode
 # Firma: con l'identità locale di Nod (~/.nod-signing, ./make-signing-identity.sh in GGuidotz/nod) se c'è, così i
 # permessi Accessibilità e Monitoraggio input restano da un aggiornamento all'altro; altrimenti ad hoc (solo prove).
 set -euo pipefail
@@ -18,8 +18,8 @@ case "${1:-}" in
   *) echo "uso: ./build.sh [--install|--dmg]" >&2; exit 64 ;;
 esac
 
-NAME="Suggeritore"
-EXE=Suggeritore
+NAME="TypeWithMe"
+EXE=TypeWithMe
 VERSION=$(tr -d '[:space:]' < VERSION)
 BUILD_NUMBER=$(git rev-list --count HEAD 2>/dev/null || echo 1)
 COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -69,7 +69,7 @@ iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 # tools/icon-check la disegna come il Dock: se risulta vuota, o uguale all'icona generica, si resta sulla classica.
 ICON_TIER=classic
 ICON_CHECK=""
-if [ "${SUGGERITORE_ICON:-}" != classic ] && [ -d Resources/Icon/Suggeritore.icon ]; then
+if [ "${TYPEWITHME_ICON:-${SUGGERITORE_ICON:-}}" != classic ] && [ -d Resources/Icon/Suggeritore.icon ]; then
   if [ -z "${DEVELOPER_DIR:-}" ] && [ -d /Applications/Xcode.app/Contents/Developer ]; then
     export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer   # Xcode anche se è selezionato solo CLT
   fi
@@ -107,6 +107,63 @@ if [ "${SUGGERITORE_ICON:-}" != classic ] && [ -d Resources/Icon/Suggeritore.ico
   fi
 fi
 
+# llama-server dentro l'app (Contents/Helpers/llama, con le sue librerie): chi installa non ha bisogno di Homebrew.
+# Dalla build di llama.cpp scritta in packaging/llama.cpp-version ("bNNNN"; "latest": l'ultima, risolta adesso), solo per
+# Apple silicon; scaricata una volta in build/llama-cache. Senza rete si continua senza: l'app usa quello di Homebrew.
+# TYPEWITHME_LLAMA=none ./build.sh … salta questo passo.
+LLAMA_TAG=""
+if [ "${TYPEWITHME_LLAMA:-}" != none ]; then
+  LLAMA_TAG=$(tr -d '[:space:]' < packaging/llama.cpp-version 2>/dev/null || echo latest)
+  if [ -z "$LLAMA_TAG" ] || [ "$LLAMA_TAG" = latest ]; then
+    # Le release "vX.Y.Z" di llama.cpp non hanno i binari: il file nightly-tag.txt dice la build "bNNNN" che li ha.
+    LLAMA_TAG=$(curl -fsSL https://github.com/ggml-org/llama.cpp/releases/latest/download/nightly-tag.txt 2>/dev/null \
+      | tr -d '[:space:]') || true
+  fi
+  LLAMA_CACHE="$BUILD/llama-cache/$LLAMA_TAG"
+  if [ -n "$LLAMA_TAG" ] && [ ! -x "$LLAMA_CACHE/llama-server" ]; then
+    mkdir -p "$BUILD/llama-cache"
+    BASE="https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA_TAG/llama-$LLAMA_TAG-bin-macos-arm64"
+    ARCHIVE=""
+    # Oggi .tar.gz, nelle release più vecchie .zip.
+    for ext in tar.gz zip; do
+      if curl -fsSL -o "$BUILD/llama-cache/llama.$ext" "$BASE.$ext"; then ARCHIVE="$BUILD/llama-cache/llama.$ext"; break; fi
+    done
+    if [ -n "$ARCHIVE" ]; then
+      UNZIP=$(mktemp -d)
+      case "$ARCHIVE" in
+        *.zip) unzip -q "$ARCHIVE" -d "$UNZIP" ;;
+        *) tar -xzf "$ARCHIVE" -C "$UNZIP" ;;
+      esac
+      SERVER=$(find "$UNZIP" -type f -name llama-server | head -n 1)
+      if [ -n "$SERVER" ]; then
+        rm -rf "$LLAMA_CACHE"; mkdir -p "$LLAMA_CACHE"
+        cp "$SERVER" "$LLAMA_CACHE/"
+        # Le librerie possono stare accanto all'eseguibile o in una cartella lib: tutte nella stessa cartella.
+        find "$UNZIP" -name '*.dylib' -exec cp -P {} "$LLAMA_CACHE/" \;
+        LICENSE_FILE=$(find "$UNZIP" -maxdepth 3 -name 'LICENSE*' | head -n 1)
+        [ -n "$LICENSE_FILE" ] && cp "$LICENSE_FILE" "$LLAMA_CACHE/LICENSE-llama.cpp"
+        # Le librerie stanno accanto all'eseguibile: che le cerchi lì anche se la release non lo dice già.
+        install_name_tool -add_rpath @loader_path "$LLAMA_CACHE/llama-server" 2>/dev/null || true
+      fi
+      rm -rf "$UNZIP" "$ARCHIVE"
+    fi
+  fi
+  if [ -n "$LLAMA_TAG" ] && [ -x "$LLAMA_CACHE/llama-server" ]; then
+    mkdir -p "$APP/Contents/Helpers/llama"
+    # In Helpers solo codice firmato: un file di testo lì fa fallire la firma dell'app. La licenza va in Resources.
+    for f in "$LLAMA_CACHE"/*; do
+      case "$f" in
+        */LICENSE*) cp "$f" "$APP/Contents/Resources/LICENSE-llama.cpp" ;;
+        *) cp -P "$f" "$APP/Contents/Helpers/llama/" ;;
+      esac
+    done
+    plist_set SGRLlamaTag "$LLAMA_TAG"
+  else
+    echo "llama-server non incluso (release di llama.cpp non scaricata): l'app userà quello di Homebrew."
+    LLAMA_TAG=""
+  fi
+fi
+
 # Dati per la diagnostica e per gli aggiornamenti (Sources/App/Diagnostics.swift, Sources/App/Updater.swift).
 plist_set SGRGitCommit "$COMMIT"
 plist_set SGRIconTier "$ICON_TIER"
@@ -115,21 +172,32 @@ plist_set SGRIconTier "$ICON_TIER"
 plutil -lint "$PLIST" >/dev/null
 xattr -cr "$APP"
 KC="$HOME/.nod-signing/nod-signing.keychain"
+# Prima il codice annidato (llama-server e le sue librerie), poi l'app: stessa identità per tutto.
+sign() {
+  if [ -f "$KC" ]; then codesign --force --keychain "$KC" --sign "Nod Local Signing" "$@"
+  else codesign --force --sign - "$@"; fi
+}
+[ -f "$KC" ] && security unlock-keychain -p nod "$KC"
+if [ -d "$APP/Contents/Helpers/llama" ]; then
+  for f in "$APP"/Contents/Helpers/llama/*.dylib(N) "$APP/Contents/Helpers/llama/llama-server"; do
+    [ -L "$f" ] || sign "$f"
+  done
+fi
 if [ -f "$KC" ]; then
   SIGNING=local
-  security unlock-keychain -p nod "$KC"
-  codesign --force --keychain "$KC" --sign "Nod Local Signing" "$APP"
+  sign "$APP"
 else
   SIGNING=adhoc
-  codesign --force --sign - "$APP"
+  sign "$APP"
   echo "Attenzione: firma ad hoc. A ogni build macOS dimentica Accessibilità e Monitoraggio input (vedi make-signing-identity.sh di Nod)."
 fi
 codesign --verify --strict "$APP"
-echo "Pronto: $APP ($VERSION, build $BUILD_NUMBER, commit $COMMIT, firma $SIGNING, icona $ICON_TIER${ICON_CHECK:+: $ICON_CHECK})"
+echo "Pronto: $APP ($VERSION, build $BUILD_NUMBER, commit $COMMIT, firma $SIGNING, icona $ICON_TIER${ICON_CHECK:+: $ICON_CHECK}, llama.cpp ${LLAMA_TAG:-da Homebrew})"
 
 case "$MODE" in
   install)
     /usr/bin/pkill -x "$EXE" 2>/dev/null || true
+    /usr/bin/pkill -x Suggeritore 2>/dev/null || true   # la copia con il nome di prima, se è aperta (l'app vecchia non si cancella)
     rm -rf "/Applications/$NAME.app"
     cp -R "$APP" "/Applications/$NAME.app"
     # Il Finder tiene in cache l'icona vecchia: registra di nuovo l'app.
@@ -143,9 +211,9 @@ case "$MODE" in
     STAGE=$(mktemp -d)
     cp -R "$APP" "$STAGE/$NAME.app"
     ln -s /Applications "$STAGE/Applications"
-    DMG="dist/Suggeritore-$VERSION.dmg"
+    DMG="dist/$NAME-$VERSION.dmg"
     rm -f "$DMG"
-    hdiutil create -quiet -volname "$NAME $VERSION" -srcfolder "$STAGE" -format UDZO "$DMG"
+    hdiutil create -quiet -volname "Type_w-Me $VERSION" -srcfolder "$STAGE" -format UDZO "$DMG"
     rm -rf "$STAGE"
     shasum -a 256 "$DMG"
     echo "DMG: $DMG" ;;
