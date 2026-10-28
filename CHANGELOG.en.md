@@ -3,6 +3,28 @@
 English notes, same format as CHANGELOG.md (the Italian one is the reference). The app uses these when its language
 is English; versions missing here fall back to the Italian notes.
 
+## 0.3.0 · 2026-10-28
+
+Suggeritore becomes Type_w/Me: faster suggestions, context from the screen, an encrypted typing history that learns your words, and llama.cpp built into the app. Everything stays on the Mac.
+
+### New features
+- **Type_w/Me.** The app's new name. On first launch it brings over Suggeritore's settings, instructions, abbreviations and phrase memory; macOS asks again for Accessibility and Input Monitoring, once. You can move the old app to the Trash.
+- **llama.cpp included.** On Apple silicon Macs llama-server ships inside the app: Gemma works without Homebrew. Homebrew's, or a path of your own, still works.
+- **Context from the screen.** If you turn it on in Settings › Apps, the model reads the text of the window you are writing in (the email you are replying to, the page you are looking at), recognized on your Mac every few seconds and never on every key. The text stays in memory and is never saved. It needs the Screen Recording permission.
+- **Personalization.** A new tab: the typing history records what you write, encrypted on your Mac with the key in the Keychain, also where you accept no suggestion (you can turn that off); you can view it and delete it per app. With "Word choice" suggestions use your own texts from the same app to match your words. Off by default.
+- **Your instructions with base models too.** With Cotypist's model (a base model) your instructions, per-app instructions, your texts, the screen and the clipboard reach the model as a header of the text to continue: before, it ignored them.
+- **"Word" length.** Completes only the word you are typing, never the next one: spelling help without suggestions on what to write.
+- **Typos.** If the word you are typing already looks misspelled, no suggestion: it would extend the mistake. Turn it off in Settings › Suggestions.
+- **Battery mode.** On battery (or in Low Power Mode) the pause doubles, the screen is not read and the model stops after the chosen idle minutes.
+
+### Improvements
+- **Faster suggestions.** The text sent to Gemma keeps the same beginning for hundreds of keys and at most 1,200 characters, and llama-server keeps Gemma 3's full cache with a single slot: the already processed prompt is reused instead of redone on every request.
+- **Shorter pause.** 120 ms instead of 350: the request is cancelled anyway if you keep typing. If you had the old default, you move to the new one.
+- **Model always ready.** Gemma starts with the app and when the Mac wakes up and stays loaded (about 1 GB with the 1B model): the first suggestion after a break does not wait for it to start. Turn it off in Settings › Engines.
+- **The next one.** After you accept a suggestion, the following one is requested right away.
+- **Timing diagnostics.** The report shows how long reading the field, the first text and the full answer take, how many prompt tokens come from the cache and how many tokens per second; never text.
+- **Your instructions** move from Engines to Personalization.
+
 ## 0.2.0 · 2026-10-28
 
 Gemma 3 becomes the recommended engine: more accurate, faster suggestions that appear while the model is still writing them. Everything stays on the Mac.

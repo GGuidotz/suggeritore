@@ -3,6 +3,28 @@
 Formato: `## <versione> · <data>`, poi `### Novità`, `### Miglioramenti`, `### Correzioni`, una riga `- ` per
 cambiamento. L'app mostra la sezione della sua versione in Impostazioni › Aggiornamenti (Sources/App/Changelog.swift).
 
+## 0.3.0 · 2026-10-28
+
+Suggeritore diventa Type_w/Me: suggerimenti più rapidi, contesto dallo schermo, una cronologia di scrittura cifrata che impara le tue parole, e llama.cpp già dentro l'app. Tutto resta sul Mac.
+
+### Novità
+- **Type_w/Me.** Il nome nuovo dell'app. Al primo avvio porta con sé le impostazioni, le istruzioni, le abbreviazioni e la memoria delle frasi di Suggeritore; macOS chiede di nuovo i permessi Accessibilità e Monitoraggio input, una volta sola. La vecchia app si può cestinare.
+- **llama.cpp incluso.** Sui Mac con Apple silicon llama-server è dentro l'app: Gemma funziona senza Homebrew. Quello di Homebrew, o un percorso tuo, resta possibile.
+- **Contesto dallo schermo.** Se lo accendi in Impostazioni › App, il modello legge il testo della finestra in cui scrivi (la mail a cui rispondi, la pagina che stai guardando), riconosciuto sul Mac ogni pochi secondi e mai a ogni tasto. Il testo resta in memoria e non si salva. Serve il permesso Registrazione schermo.
+- **Personalizzazione.** Una scheda nuova: la cronologia di scrittura registra quello che scrivi, cifrato sul Mac con la chiave nel Portachiavi, anche dove non accetti suggerimenti (si può spegnere); la vedi e la elimini per app. Con "Scelta delle parole" i suggerimenti usano i tuoi testi della stessa app per imitarne le parole. Spenta in partenza.
+- **Le tue istruzioni anche con i modelli base.** Con il modello di Cotypist (un modello base) le istruzioni, quelle per app, i tuoi testi, lo schermo e gli appunti arrivano al modello come intestazione del testo da continuare: prima li ignorava.
+- **Lunghezza "Parola".** Completa solo la parola che stai scrivendo, mai quella dopo: aiuto all'ortografia senza suggerimenti su cosa scrivere.
+- **Refusi.** Se la parola che stai scrivendo sembra già sbagliata, niente suggerimento: lo allungherebbe con l'errore. Si spegne in Impostazioni › Suggerimenti.
+- **Modalità batteria.** A batteria (o con Risparmio energia) la pausa raddoppia, lo schermo non si legge e il modello si spegne dopo i minuti di inattività scelti.
+
+### Miglioramenti
+- **Suggerimenti più rapidi.** Il testo mandato a Gemma ha l'inizio fermo per centinaia di tasti e al massimo 1.200 caratteri, e llama-server tiene la cache intera di Gemma 3 con un solo slot: il prompt già elaborato si riusa invece di rifarlo a ogni richiesta.
+- **Pausa più corta.** 120 ms invece di 350: la richiesta si annulla comunque se riprendi a scrivere. Chi aveva il vecchio valore predefinito passa al nuovo.
+- **Modello sempre pronto.** Gemma parte con l'app e al risveglio del Mac e resta caricato (circa 1 GB con il modello 1B): il primo suggerimento dopo una pausa non aspetta l'avvio. Si spegne in Impostazioni › Motori.
+- **Il seguito dopo.** Accettato un suggerimento, quello successivo si chiede subito.
+- **Diagnostica dei tempi.** Il report dice quanto ci mettono lettura del campo, primo testo e risposta completa, quanti token del prompt vengono dalla cache e quanti token al secondo; mai testo.
+- **Le tue istruzioni** passano da Motori a Personalizzazione.
+
 ## 0.2.0 · 2026-10-28
 
 Gemma 3 diventa il motore consigliato: suggerimenti più precisi e più rapidi, che compaiono già mentre il modello li scrive. Tutto resta sul Mac.

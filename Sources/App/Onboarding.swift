@@ -136,9 +136,11 @@ struct OnboardingView: View {
 
     private var engine: some View {
         StepPage(symbol: "cpu", title: L("Il motore"),
-                 text: L("Gemma 3 1B è il consigliato: più preciso e più veloce; serve llama.cpp, che si installa con Homebrew, e al primo uso scarica circa 0,8 GB. Apple Intelligence è già sul Mac, senza installare niente, ma è più debole.")) {
+                 text: L("Gemma 3 1B è il consigliato: più preciso e più veloce. Usa llama.cpp, già incluso nell'app sui Mac con Apple silicon (altrimenti si installa con Homebrew), e al primo uso scarica circa 0,8 GB. Apple Intelligence è già sul Mac, senza installare niente, ma è più debole.")) {
             if llamaInstalled {
-                Label(L("llama.cpp è installato: Gemma parte alla prima richiesta."), systemImage: "checkmark.circle.fill")
+                Label(LlamaServer.bundledTag == nil ? L("llama.cpp è installato: Gemma parte alla prima richiesta.")
+                                                    : L("llama.cpp è incluso nell'app: Gemma è pronto."),
+                      systemImage: "checkmark.circle.fill")
                     .foregroundStyle(Palette.calm)
             } else {
                 LlamaInstallBox()

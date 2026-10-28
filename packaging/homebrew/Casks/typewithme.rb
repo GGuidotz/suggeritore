@@ -34,8 +34,11 @@ cask "typewithme" do
   ]
 
   caveats <<~EOS
-    Type_w/Me lives in the menu bar and needs two permissions, asked at first launch:
-    Accessibility (to read the field you type in and show the suggestion) and Input Monitoring
-    (to see Tab and Esc). Nothing leaves your Mac.
+    Type_w/Me lives in the menu bar. llama.cpp is included in the app (Apple silicon), so Gemma
+    needs no Homebrew; on Intel, run `brew install llama.cpp` or use Apple Intelligence.
+
+    Permissions, asked at first launch: Accessibility (to read the field you type in and show the
+    suggestion) and Input Monitoring (to see Tab and Esc). Screen Recording is needed only if you
+    turn on screen context in Settings. Nothing leaves your Mac.
   EOS
 end

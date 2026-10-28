@@ -403,8 +403,8 @@ final class Completer: ObservableObject {
         }
         let context = TextContext(before: before, after: after, appName: field.appName, bundleID: field.bundleID)
         guard context.endsAtWordBoundary || context.partialWord.count >= 3 else { return }
-        // "Solo la parola corrente": a fine parola non c'è niente da completare.
         noteHistory(before, field: field)
+        // "Solo la parola corrente": a fine parola non c'è niente da completare.
         if prefs.length == .word, context.partialWord.isEmpty { return }
         let language = LanguageGuess.code(for: before)
         // La parola a metà sembra già sbagliata: allungarla non aiuta.

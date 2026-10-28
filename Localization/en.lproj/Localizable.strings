@@ -95,7 +95,6 @@
 "Fermo: si avvia quando serve" = "Stopped: starts when needed";
 "Fino a due frasi." = "Up to two sentences.";
 "Gemma 3 1B base" = "Gemma 3 1B base";
-"Gemma 3 1B è il consigliato: più preciso e più veloce; serve llama.cpp, che si installa con Homebrew, e al primo uso scarica circa 0,8 GB. Apple Intelligence è già sul Mac, senza installare niente, ma è più debole." = "Gemma 3 1B is the recommended one: more accurate and faster; it needs llama.cpp, installed with Homebrew, and on first use it downloads about 0.8 GB. Apple Intelligence is already on your Mac, nothing to install, but it is weaker.";
 "Gemma 3 4B base" = "Gemma 3 4B base";
 "Gemma non è disponibile: vedi Impostazioni › Motori." = "Gemma is not available: see Settings › Engines.";
 "Gemma: si avvia…" = "Gemma: starting…";
@@ -325,3 +324,5 @@
 "Personalizzazione" = "Personalization";
 "Serve il permesso Registrazione schermo." = "Screen Recording permission is needed.";
 "Usa lo schermo come contesto" = "Use the screen as context";
+"Gemma 3 1B è il consigliato: più preciso e più veloce. Usa llama.cpp, già incluso nell'app sui Mac con Apple silicon (altrimenti si installa con Homebrew), e al primo uso scarica circa 0,8 GB. Apple Intelligence è già sul Mac, senza installare niente, ma è più debole." = "Gemma 3 1B is recommended: more accurate and faster. It uses llama.cpp, already included in the app on Apple silicon Macs (otherwise installed with Homebrew), and on first use it downloads about 0.8 GB. Apple Intelligence is already on your Mac, with nothing to install, but it is weaker.";
+"llama.cpp è incluso nell'app: Gemma è pronto." = "llama.cpp is included in the app: Gemma is ready.";

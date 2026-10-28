@@ -19,6 +19,9 @@ command -v gh >/dev/null || die "Serve GitHub CLI: brew install gh && gh auth lo
 gh release view "v$VERSION" --repo "$APP_REPO" >/dev/null 2>&1 && die "La release v$VERSION esiste già: aumenta VERSION."
 
 ./build.sh --dmg
+# Chi installa non deve aver bisogno di Homebrew: senza llama-server incluso la release non parte.
+[ -x build/TypeWithMe.app/Contents/Helpers/llama/llama-server ] \
+  || die "llama-server non è nell'app (vedi packaging/llama.cpp-version e la rete): la release non parte."
 DMG="dist/TypeWithMe-$VERSION.dmg"
 SHA=$(shasum -a 256 "$DMG" | cut -d' ' -f1)
 section() { awk -v v="$VERSION" '$0 ~ "^## "v" " {f=1; next} /^## / {f=0} f' "$1"; }

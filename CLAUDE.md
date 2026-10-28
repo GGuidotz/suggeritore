@@ -35,3 +35,7 @@ app: testo grigio dopo il cursore, Tab per accettare. Tutto sul Mac. Stesso sche
 - Leggerezza: a tastiera ferma l'app non fa nulla; una richiesta al modello solo dopo una pausa, annullata se riprendi a
   scrivere; niente letture del campo a ogni tasto oltre a quelle necessarie.
 - Repository pubblico: mai dati reali nei testi, negli esempi o nei test (esempi inventati: Marta, Luca, Nexa, Studio Rossi).
+- Dalla 0.3.0: llama-server incluso in Contents/Helpers/llama (build.sh, release scelta in packaging/llama.cpp-version),
+  contesto dallo schermo (`Sources/App/Input/ScreenContext.swift`, solo in memoria), cronologia di scrittura cifrata
+  (`Sources/App/TypingHistory.swift`, AES-GCM con chiave nel Portachiavi). Per Gemma il testo prima del cursore ha
+  l'inizio ancorato (`TextContext.anchored`): non cambiarlo in una finestra che scorre, romperebbe la cache del prompt.
