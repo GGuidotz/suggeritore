@@ -206,11 +206,7 @@ private struct SuggestionSettings: View {
             }
 
             Section {
-                Picker(L("Lunghezza"), selection: $prefs.length) {
-                    ForEach(SuggestionLength.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                Footnote(prefs.length.detail)
+                WordLimitSlider(prefs: prefs)
                 LabeledContent(L("Aspetta prima di suggerire")) {
                     HStack(spacing: 10) {
                         Slider(value: $prefs.delay, in: 0.05...1.0, step: 0.01)
@@ -229,7 +225,7 @@ private struct SuggestionSettings: View {
             } header: {
                 Text(L("Quando e quanto"))
             } footer: {
-                Footnote(L("Il suggerimento arriva dopo una pausa nella scrittura. A metà riga il seguito deve raccordarsi con il testo che c'è dopo il cursore: funziona, ma non sempre bene. Con una parola che sembra sbagliata il suggerimento la allungherebbe con l'errore: meglio niente. A batteria la pausa raddoppia, lo schermo non si legge e il modello si spegne dopo i minuti di inattività scelti in Motori."))
+                Footnote(L("Il suggerimento arriva dopo una pausa nella scrittura. A metà riga il seguito deve raccordarsi con il testo che c'è dopo il cursore: funziona, ma non sempre bene. Con una parola che sembra sbagliata il suggerimento la allungherebbe con l'errore: meglio niente. A batteria la pausa si allunga della metà, lo schermo non si legge e il modello si spegne dopo i minuti di inattività scelti in Motori."))
             }
 
             Section {
@@ -678,5 +674,31 @@ private struct FeedbackButton: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isLink)
+    }
+}
+
+/// Le parole al massimo nel suggerimento, da 1 (solo la parola in corso) a 20. Il modello si ferma prima se non è sicuro.
+struct WordLimitSlider: View {
+    @ObservedObject var prefs: Preferences
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            LabeledContent(L("Parole al massimo")) {
+                HStack(spacing: 10) {
+                    Slider(value: Binding(get: { Double(prefs.maxWords) }, set: { prefs.maxWords = Int($0.rounded()) }),
+                           in: 1...Double(SuggestionLength.maxSlider), step: 1)
+                        .frame(width: 180)
+                        .accessibilityLabel(L("Parole al massimo"))
+                        .accessibilityValue("\(prefs.maxWords)")
+                    Text("\(prefs.maxWords)")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 60, alignment: .trailing)
+                }
+            }
+            Footnote(prefs.maxWords == 1
+                     ? L("Solo la parola che stai scrivendo, mai quella dopo.")
+                     : L("Fino a %d parole: il suggerimento si ferma prima se il modello non è sicuro della parola dopo.", prefs.maxWords))
+        }
     }
 }

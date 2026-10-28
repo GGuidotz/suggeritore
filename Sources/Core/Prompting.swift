@@ -14,7 +14,7 @@ enum Prompting {
             "You are an autocomplete engine. Write ONLY the text that comes next at the cursor.",
             "- No quotes, labels, explanations, markdown or emoji. Never repeat the text before the cursor.",
             "- Same language as the text (\(languageName(r.language))), same tone.",
-            "- Length: \(lengthHint(r.length)). Stop at the end of the sentence.",
+            "- Length: \(lengthHint(r.length, words: r.maxWords)). Stop at the end of the sentence.",
             "- Mid-word: finish the word, then go on. After a space: start with the next word. After a complete word or punctuation: start with a space.",
             "- If nothing fits, output nothing.",
         ]
@@ -82,9 +82,19 @@ enum Prompting {
         if !forApp.isEmpty { header.append("Writing in \(r.context.appName.isEmpty ? "this app" : r.context.appName): \(forApp)") }
         for piece in r.ownWriting { header.append("Earlier text by the same writer:\n\(piece)") }
         if let screen = r.screen, !screen.isEmpty { header.append("On screen:\n\(String(screen.prefix(maxScreen)))") }
-        if let clip = r.clipboard, !clip.isEmpty { header.append("Clipboard:\n\(String(clip.prefix(500)))") }
+        // Un modello base copia quello che vede: dagli appunti solo testo scritto, non codici, link o colonne di numeri.
+        if let clip = r.clipboard, isProse(clip) { header.append("Clipboard:\n\(String(clip.prefix(500)))") }
         guard !header.isEmpty else { return r.context.before }
         return header.joined(separator: "\n\n") + "\n\n---\n\n" + r.context.before
+    }
+
+    /// Almeno quattro parole e soprattutto lettere.
+    static func isProse(_ text: String) -> Bool {
+        let sample = text.prefix(500)
+        let letters = sample.filter { $0.isLetter }.count
+        let visible = sample.filter { !$0.isWhitespace }.count
+        let words = sample.split(whereSeparator: { $0.isWhitespace }).filter { $0.contains(where: { $0.isLetter }) }.count
+        return words >= 4 && visible > 0 && Double(letters) / Double(visible) >= 0.7
     }
 
     private static let labels = ["Continuation:", "Completion:", "Output:", "Text:"]
@@ -122,7 +132,15 @@ enum Prompting {
         text = text.replacingOccurrences(of: "\r", with: "")
         if let newline = text.firstIndex(of: "\n") {
             let firstLine = text[..<newline].trimmingCharacters(in: .whitespaces)
-            text = firstLine.isEmpty ? String(text[text.index(after: newline)...]).components(separatedBy: "\n").first ?? "" : String(firstLine)
+            if firstLine.isEmpty {
+                // Il modello è andato a capo: la riga dopo vale solo se comincia con una parola (non "1.", "-", "*").
+                let next = (String(text[text.index(after: newline)...]).components(separatedBy: "\n").first ?? "")
+                    .trimmingCharacters(in: .whitespaces)
+                guard next.first?.isLetter == true else { return nil }
+                text = next
+            } else {
+                text = String(firstLine)
+            }
         }
         text = collapseSpaces(text)
 
@@ -143,7 +161,7 @@ enum Prompting {
 
         // Taglio a fine frase (solo a risposta finita) e a numero di parole.
         if final { text = cutToSentences(text, max: r.length.maxSentences) }
-        text = cutToWords(text, max: r.length.maxWords)
+        text = cutToWords(text, max: r.maxWords)
         text = text.replacingOccurrences(of: "\\s+$", with: "", options: .regularExpression)
         // Il seguito deve legarsi bene a ciò che viene dopo sulla riga.
         if final, let next = r.context.after.first, !next.isWhitespace, !next.isPunctuation, text.last?.isLetter == true {
@@ -151,6 +169,9 @@ enum Prompting {
         }
         let meaningful = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !meaningful.isEmpty, meaningful != "\"\"" else { return nil }
+        // Solo cifre o punteggiatura ("1", ".", "..."): non è un seguito, a meno di stare completando un numero.
+        let completingNumber = r.context.partialWord.last?.isNumber == true
+        if !completingNumber, !meaningful.contains(where: { $0.isLetter }) { return nil }
         return text
     }
 
@@ -196,12 +217,12 @@ enum Prompting {
         }
     }
 
-    private static func lengthHint(_ length: SuggestionLength) -> String {
+    private static func lengthHint(_ length: SuggestionLength, words: Int) -> String {
         switch length {
         case .word: "only finish the word being typed, never add another word"
-        case .short: "very short: a few words, at most \(length.maxWords)"
-        case .medium: "short: one sentence, at most \(length.maxWords) words"
-        case .long: "at most two sentences, at most \(length.maxWords) words"
+        case .short: "very short: a few words, at most \(words)"
+        case .medium: "short: one sentence, at most \(words) words"
+        case .long: "at most two sentences, at most \(words) words"
         }
     }
 

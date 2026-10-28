@@ -120,6 +120,19 @@ enum SuggestionLength: String, CaseIterable, Codable, Identifiable {
 
     /// Token da chiedere al modello (un po' più delle parole, per la punteggiatura).
     var maxTokens: Int { maxWords * 2 + 8 }
+
+    /// Parole al massimo scelte con lo slider (1...maxSlider).
+    static let maxSlider = 20
+
+    /// Lo stile che va con un numero massimo di parole: 1 è solo la parola in corso, poi breve, media, lunga.
+    static func forWords(_ words: Int) -> SuggestionLength {
+        switch words {
+        case ...1: .word
+        case 2...6: .short
+        case 7...14: .medium
+        default: .long
+        }
+    }
 }
 
 /// Tutto ciò che serve a un motore per proporre il seguito.
@@ -138,6 +151,11 @@ struct CompletionRequest {
     var screen: String?
     /// Pezzi di testo scritti prima da chi usa l'app, nella stessa app (Personalizzazione), per imitarne le parole.
     var ownWriting: [String] = []
+    /// Parole al massimo scelte con lo slider; 0: quelle della lunghezza.
+    var wordLimit: Int = 0
+
+    var maxWords: Int { wordLimit > 0 ? wordLimit : length.maxWords }
+    var maxTokens: Int { maxWords * 2 + 8 }
 }
 
 enum SuggestionSource: String {

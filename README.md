@@ -13,7 +13,7 @@ prima lingua.
 ## Cosa fa
 
 - **Suggerimenti ovunque.** Nei campi di testo delle app native (Mail, Note, Pages, Messaggi, Safari…) e, dove
-  l'app espone il cursore, anche altrove. Lunghezza a scelta (breve, media, lunga) e pausa prima di suggerire
+  l'app espone il cursore, anche altrove. Parole al massimo a scelta (da 1 a 20) e pausa prima di suggerire
   regolabile.
 - **Tasti tuoi.** Accetta una parola, accetta tutto, scarta e riscrivi si cambiano in Impostazioni › Suggerimenti.
 - **Gemma 3, il motore consigliato.** Gemma 3 1B con llama.cpp, che sui Mac con Apple silicon è già dentro l'app:
@@ -30,10 +30,10 @@ prima lingua.
   Serve il permesso Registrazione schermo.
 - **Personalizzazione.** Una cronologia di quello che scrivi, cifrata sul Mac, che puoi vedere ed eliminare per app;
   con "Scelta delle parole" i suggerimenti imitano le parole dei tuoi testi nella stessa app. Spenta in partenza.
-- **Lunghezza "Parola".** Completa solo la parola che stai scrivendo, mai quella dopo: aiuto all'ortografia.
+- **Parole al massimo.** Da 1 a 20; con 1 completa solo la parola che stai scrivendo, mai quella dopo: aiuto all'ortografia.
 - **Refusi.** Se la parola che stai scrivendo sembra già sbagliata, niente suggerimento. Si spegne in Impostazioni ›
   Suggerimenti.
-- **Modalità batteria.** A batteria (o con Risparmio energia) la pausa raddoppia, lo schermo non si legge e il modello
+- **Modalità batteria.** A batteria (o con Risparmio energia) la pausa si allunga della metà, lo schermo non si legge e il modello
   si spegne dopo i minuti di inattività scelti.
 - **Istruzioni tue.** Una frase che vale per tutti i suggerimenti (tono, stile) e, se vuoi, una per app: Mail
   formale, Messaggi da chat, Note sintetico sono i profili consigliati, da accettare con un pulsante.

@@ -456,7 +456,8 @@ final class Completer: ObservableObject {
                                         appInstructions: prefs.instruction(forApp: field.bundleID),
                                         clipboard: clipboardIfAllowed(),
                                         screen: screenIfAllowed(pid: field.pid, before: limited.before),
-                                        ownWriting: ownWritingFor(field: field, before: before))
+                                        ownWriting: ownWritingFor(field: field, before: before),
+                                        wordLimit: prefs.maxWords)
         let source: SuggestionSource = engine.kind == .gemma ? .gemma : .apple
         let started = Date()
         let readMs = started.timeIntervalSince(readBegan) * 1000
@@ -593,10 +594,11 @@ final class Completer: ObservableObject {
         history.saveNow()
     }
 
-    /// A batteria, se la modalità batteria è accesa: pausa doppia, almeno 300 ms.
+    /// A batteria, se la modalità batteria è accesa: pausa una volta e mezza (con una pausa fissa di 300 ms i
+    /// suggerimenti sembravano lenti; il risparmio vero viene dallo schermo non letto e dal modello che si spegne).
     private var effectiveDelay: Double {
         guard prefs.batterySaver, Power.shouldSave else { return prefs.delay }
-        return max(prefs.delay * 2, 0.3)
+        return prefs.delay * 1.5
     }
 
     /// Il testo della finestra in primo piano, senza le righe che sono già nel testo prima del cursore (lo schermo

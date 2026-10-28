@@ -63,7 +63,7 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
         lock.withLock { timings = nil }
         if rawCompletion { return try await completeRaw(request, partial: partial) }
         let body = Self.body(model: model, system: Prompting.completionInstructions(request),
-                             user: Prompting.completionPrompt(request), maxTokens: request.length.maxTokens,
+                             user: Prompting.completionPrompt(request), maxTokens: request.maxTokens,
                              temperature: 0.2, stream: true)
         let (bytes, response) = try await LocalHTTP.session.bytes(for: chatRequest(body))
         try Self.check(response)
@@ -87,7 +87,7 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
     private func completeRaw(_ request: CompletionRequest, partial: @escaping @Sendable (String) -> Void) async throws -> String {
         var object: [String: Any] = [:]
         object["prompt"] = Prompting.rawPrompt(request)
-        object["n_predict"] = request.length.maxTokens
+        object["n_predict"] = request.maxTokens
         // La parola più probabile, sempre: suggerimenti stabili, e la probabilità di ogni token per decidere dove
         // fermarsi (ConfidenceStop). Niente stop a "\n": dopo una frase finita il modello va spesso a capo e il seguito
         // è la riga dopo (Prompting.cleanCompletion la prende); ci si ferma a fine riga, sotto.
@@ -103,7 +103,7 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
         urlRequest.httpBody = (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
         let (bytes, response) = try await LocalHTTP.session.bytes(for: urlRequest)
         try Self.check(response)
-        var stop = ConfidenceStop(length: request.length)
+        var stop = ConfidenceStop(length: request.length, maxWords: request.maxWords)
         var natural = false
         for try await line in bytes.lines {
             guard line.hasPrefix("data:") else { continue }
@@ -114,7 +114,8 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
             note(chunk)
             if let piece = chunk["content"] as? String, !piece.isEmpty {
                 if stop.add(piece, probability: Self.probability(chunk)) { break }
-                partial(stop.text)
+                // Si mostra solo quello di cui il modello è già sicuro: niente parole che compaiono e spariscono.
+                if !stop.confident.isEmpty { partial(stop.confident) }
                 // Finita la riga (dopo un eventuale a capo iniziale), il seguito è completo.
                 if AppleEngine.endsLine(stop.text) { natural = true; break }
             }

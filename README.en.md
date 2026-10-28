@@ -13,7 +13,7 @@ first language.
 ## What it does
 
 - **Suggestions everywhere.** In the text fields of native apps (Mail, Notes, Pages, Messages, Safari…) and, where the
-  app exposes the cursor, elsewhere too. Length of your choice (short, medium, long) and adjustable pause.
+  app exposes the cursor, elsewhere too. Maximum words of your choice (1 to 20) and adjustable pause.
 - **Your keys.** Accept one word, accept everything, dismiss and rewrite can be changed in Settings › Suggestions.
 - **Gemma 3, the recommended engine.** Gemma 3 1B with llama.cpp, which on Apple silicon Macs is already inside the
   app: Homebrew is no longer needed (on Intel, `brew install llama.cpp` remains, or Apple Intelligence). More accurate
@@ -29,9 +29,9 @@ first language.
   saved. It needs the Screen Recording permission.
 - **Personalization.** A history of what you write, encrypted on the Mac, that you can view and delete per app; with
   "Word choice" suggestions imitate the words of your own texts in the same app. Off by default.
-- **"Word" length.** Completes only the word you are typing, never the next one: spelling help.
+- **Maximum words.** From 1 to 20; at 1 it completes only the word you are typing, never the next one: spelling help.
 - **Typos.** If the word you're typing already looks wrong, no suggestion. Can be turned off in Settings › Suggestions.
-- **Battery mode.** On battery (or in Low Power Mode) the pause doubles, the screen isn't read and the model shuts down
+- **Battery mode.** On battery (or in Low Power Mode) the pause grows by half, the screen isn't read and the model shuts down
   after the minutes of inactivity you chose.
 - **Your instructions.** One sentence for every suggestion (tone, style) and, if you like, one per app: formal Mail,
   chatty Messages, concise Notes are the recommended profiles, accepted with a button.

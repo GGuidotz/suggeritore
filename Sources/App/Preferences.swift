@@ -25,6 +25,14 @@ final class Preferences: ObservableObject {
     /// Il motore scelto. Chiave nuova dalla 0.2.0: "Automatico" è il predefinito anche per chi aveva Apple Intelligence.
     @Published var engine: EngineChoice { didSet { save(engine, "engineChoice") } }
     @Published var length: SuggestionLength { didSet { save(length, "length") } }
+    /// Parole al massimo nel suggerimento (slider, 1...20). Decide anche la lunghezza: 1 è solo la parola in corso.
+    @Published var maxWords: Int {
+        didSet {
+            defaults.set(maxWords, forKey: "maxWords")
+            let style = SuggestionLength.forWords(maxWords)
+            if length != style { length = style }
+        }
+    }
     /// Secondi di pausa prima di chiedere un suggerimento.
     @Published var delay: Double { didSet { defaults.set(delay, forKey: "delay") } }
     @Published var acceptWord: KeyBinding { didSet { save(acceptWord, "acceptWord") } }
@@ -96,7 +104,11 @@ final class Preferences: ObservableObject {
         // Dalla 0.1.0 resta solo "Solo regole e memoria", che era una scelta; Apple Intelligence era il predefinito.
         let old: EngineChoice? = load("engine", Optional<EngineChoice>.none)
         engine = load("engineChoice", old == .rulesOnly ? EngineChoice.rulesOnly : EngineChoice.auto)
-        length = load("length", SuggestionLength.medium)
+        // Dalla 0.3.0 lo slider: chi aveva scelto una lunghezza parte dal suo numero di parole (al massimo 20).
+        let savedLength = load("length", SuggestionLength.medium)
+        let words = min(max(d.object(forKey: "maxWords") as? Int ?? savedLength.maxWords, 1), SuggestionLength.maxSlider)
+        maxWords = words
+        length = SuggestionLength.forWords(words)
         // Dalla 0.3.0 la pausa predefinita è 120 ms: la richiesta si annulla comunque se riprendi a scrivere. Chi
         // aveva il vecchio predefinito (350 ms) passa al nuovo una volta sola.
         var savedDelay = d.object(forKey: "delay") as? Double

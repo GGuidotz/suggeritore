@@ -139,7 +139,7 @@ enum DiagnosticsReport {
 
         section("Preferences")
         row("Enabled", yesNo(prefs.enabled))
-        row("Length", prefs.length.rawValue)
+        row("Length", "\(prefs.length.rawValue), up to \(prefs.maxWords) words")
         row("Delay", "\(Int(prefs.delay * 1000)) ms")
         row("Keys", "word \(prefs.acceptWord.display), all \(prefs.acceptAll.display), dismiss \(prefs.dismiss.display), rewrite \(prefs.rewrite.display)")
         row("Mid-line", yesNo(prefs.midLine))

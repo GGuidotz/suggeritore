@@ -167,11 +167,8 @@ struct OnboardingView: View {
             Tip(symbol: "text.append", text: L("%@: prendi tutto il suggerimento.", prefs.acceptAll.display))
             Tip(symbol: "xmark", text: L("%@, o semplicemente continua a scrivere: il suggerimento sparisce.", prefs.dismiss.display))
             Tip(symbol: "pencil.line", text: L("%@ sul testo selezionato: più breve, più formale, correggi, o un'istruzione tua.", prefs.rewrite.display))
-            Picker(L("Lunghezza"), selection: $prefs.length) {
-                ForEach(SuggestionLength.allCases) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .padding(.top, 4)
+            WordLimitSlider(prefs: prefs)
+                .padding(.top, 4)
             Footnote(L("Tasti e lunghezza si cambiano in Impostazioni › Suggerimenti."))
         }
     }

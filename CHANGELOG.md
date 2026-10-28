@@ -13,9 +13,9 @@ Suggeritore diventa Type_w/Me: suggerimenti più rapidi, contesto dallo schermo,
 - **Contesto dallo schermo.** Se lo accendi in Impostazioni › App, il modello legge il testo della finestra in cui scrivi (la mail a cui rispondi, la pagina che stai guardando), riconosciuto sul Mac ogni pochi secondi e mai a ogni tasto. Il testo resta in memoria e non si salva. Serve il permesso Registrazione schermo.
 - **Personalizzazione.** Una scheda nuova: la cronologia di scrittura registra quello che scrivi, cifrato sul Mac con la chiave nel Portachiavi, anche dove non accetti suggerimenti (si può spegnere); la vedi e la elimini per app. Con "Scelta delle parole" i suggerimenti usano i tuoi testi della stessa app per imitarne le parole. Spenta in partenza.
 - **Le tue istruzioni anche con i modelli base.** Con il modello di Cotypist (un modello base) le istruzioni, quelle per app, i tuoi testi, lo schermo e gli appunti arrivano al modello come intestazione del testo da continuare: prima li ignorava.
-- **Lunghezza "Parola".** Completa solo la parola che stai scrivendo, mai quella dopo: aiuto all'ortografia senza suggerimenti su cosa scrivere.
+- **Parole al massimo.** Uno slider da 1 a 20 al posto della scelta della lunghezza; con 1 completa solo la parola che stai scrivendo, mai quella dopo: aiuto all'ortografia senza suggerimenti su cosa scrivere.
 - **Refusi.** Se la parola che stai scrivendo sembra già sbagliata, niente suggerimento: lo allungherebbe con l'errore. Si spegne in Impostazioni › Suggerimenti.
-- **Modalità batteria.** A batteria (o con Risparmio energia) la pausa raddoppia, lo schermo non si legge e il modello si spegne dopo i minuti di inattività scelti.
+- **Modalità batteria.** A batteria (o con Risparmio energia) la pausa si allunga della metà, lo schermo non si legge e il modello si spegne dopo i minuti di inattività scelti.
 
 ### Miglioramenti
 - **Suggerimenti più rapidi.** Il testo mandato a Gemma ha l'inizio fermo per centinaia di tasti e al massimo 1.200 caratteri, e llama-server tiene la cache intera di Gemma 3 con un solo slot: il prompt già elaborato si riusa invece di rifarlo a ogni richiesta.
@@ -26,6 +26,7 @@ Suggeritore diventa Type_w/Me: suggerimenti più rapidi, contesto dallo schermo,
 - **Le tue istruzioni** passano da Motori a Personalizzazione.
 - **Lunghezza che si adatta.** Con il modello base il suggerimento continua finché il modello è sicuro della parola dopo e si ferma alla prima incerta, entro il massimo della lunghezza scelta: niente code inventate e niente arresti a metà.
 - **Testo grigio ovunque.** Il suggerimento compare sempre dopo il cursore, come il testo che scrivi, e se non ci sta va a capo dall'inizio della riga. Dove il campo non dice dove sta il cursore niente più riquadro sopra il testo.
+- **Niente seguiti a caso.** Se il modello non è sicuro già della prima parola non suggerisce niente, e un seguito fatto solo di cifre o punteggiatura non si mostra. Dagli appunti al modello base arriva solo testo scritto.
 - **Niente blocchi dopo un suggerimento lungo.** Accettato un suggerimento, il successivo aspetta che il testo inserito sia davvero nel campo; un Tab in più subito dopo non sposta il cursore in un altro campo.
 
 ## 0.2.0 · 2026-10-28
