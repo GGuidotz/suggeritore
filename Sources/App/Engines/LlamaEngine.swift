@@ -2,6 +2,8 @@
 // espongono su localhost lo stesso endpoint compatibile con OpenAI, POST /v1/chat/completions. Il testo va solo a
 // 127.0.0.1, mai in rete. Il seguito arriva a pezzi (stream: true, righe SSE "data: {...}" fino a "data: [DONE]").
 // Un motore per server avviato: indirizzo e nome del modello non cambiano, se il server cambia se ne crea un altro.
+// Con un modello base (rawCompletion) si usa invece l'endpoint nativo /completion di llama-server: il prompt è il
+// testo prima del cursore e il modello lo continua così com'è, senza istruzioni. Per riscrivere serve un modello istruito.
 
 import Foundation
 
@@ -13,16 +15,20 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
     let baseURL: URL
     /// Il campo "model" della richiesta: per Ollama il nome del modello, per llama-server è indifferente.
     let model: String
+    /// Modello base: continuazione pura via /completion (solo con il nostro llama-server).
+    let rawCompletion: Bool
 
     var unavailableReason: String? { nil }
 
-    init(baseURL: URL, model: String, displayName: String) {
+    init(baseURL: URL, model: String, displayName: String, rawCompletion: Bool = false) {
         self.baseURL = baseURL
         self.model = model
         self.displayName = displayName
+        self.rawCompletion = rawCompletion
     }
 
     func complete(_ request: CompletionRequest, partial: @escaping @Sendable (String) -> Void) async throws -> String {
+        if rawCompletion { return try await completeRaw(request, partial: partial) }
         let body = Self.body(model: model, system: Prompting.completionInstructions(request),
                              user: Prompting.completionPrompt(request), maxTokens: request.length.maxTokens,
                              temperature: 0.2, stream: true)
@@ -43,7 +49,45 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
         return text
     }
 
+    /// Modello base: il prompt è il testo stesso, il modello lo continua. Si ferma a fine riga.
+    private func completeRaw(_ request: CompletionRequest, partial: @escaping @Sendable (String) -> Void) async throws -> String {
+        var object: [String: Any] = [:]
+        object["prompt"] = request.context.before
+        object["n_predict"] = request.length.maxTokens
+        object["temperature"] = 0.3
+        object["top_k"] = 40
+        object["top_p"] = 0.9
+        object["repeat_penalty"] = 1.1
+        object["stop"] = ["\n"]
+        object["cache_prompt"] = true
+        object["stream"] = true
+        var urlRequest = URLRequest(url: baseURL.appendingPathComponent("completion"))
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.timeoutInterval = 10
+        urlRequest.httpBody = (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
+        let (bytes, response) = try await LocalHTTP.session.bytes(for: urlRequest)
+        try Self.check(response)
+        var text = ""
+        for try await line in bytes.lines {
+            guard line.hasPrefix("data:") else { continue }
+            let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
+            if payload == "[DONE]" { break }
+            if let message = Self.errorMessage(payload) { throw EngineError(message) }
+            guard let chunk = Self.parse(payload) else { continue }
+            if let piece = chunk["content"] as? String, !piece.isEmpty {
+                text += piece
+                partial(text)
+            }
+            if (chunk["stop"] as? Bool) == true { break }
+        }
+        return text
+    }
+
     func rewrite(_ text: String, instruction: String, language: String?) async throws -> String {
+        if rawCompletion {
+            throw EngineError(L("Questo modello continua il testo ma non segue istruzioni: per riscrivere scegli un modello istruito o Apple Intelligence."))
+        }
         let body = Self.body(model: model, system: Prompting.rewriteInstructions(instruction, language: language),
                              user: Prompting.rewritePrompt(text), maxTokens: 600, temperature: 0.3, stream: false)
         var request = chatRequest(body)

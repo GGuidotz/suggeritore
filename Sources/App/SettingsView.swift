@@ -60,11 +60,28 @@ private struct GeneralSettings: View {
     @State private var usage: ProcessUsage?
     @State private var accessibility = Permissions.accessibility
     @State private var inputMonitoring = Permissions.inputMonitoring
+    @State private var cotypistStats: CotypistImport.Stats?
 
     var body: some View {
         Form {
             Section {
                 SuggeritoreStatusView(info: completer.statusInfo, labels: .localized)
+            }
+
+            if let stats = cotypistStats {
+                Section {
+                    Text(L("Cotypist ha contato %@ parole accettate in %d giorni.", Format.integer(stats.words), stats.days))
+                    Button(prefs.cotypistImported ? L("Già aggiunte al contatore") : L("Aggiungi al contatore di Suggeritore")) {
+                        prefs.acceptedWordsTotal += stats.words
+                        prefs.cotypistImported = true
+                        diag(.app, "cotypist stats imported")
+                    }
+                    .disabled(prefs.cotypistImported)
+                } header: {
+                    Text(L("Da Cotypist"))
+                } footer: {
+                    Footnote(L("Le memorie di Cotypist sono cifrate e non si possono importare. Il suo modello Gemma 3 1B base, se c'è, compare già nel catalogo di Impostazioni › Motori e si usa senza scaricare nulla."))
+                }
             }
 
             Section {
@@ -112,6 +129,7 @@ private struct GeneralSettings: View {
                 Footnote(L("A tastiera ferma l'app non fa nulla. Il modello lavora solo dopo una pausa mentre scrivi, e si ferma appena riprendi."))
             }
             .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in usage = completer.ownUsage }
+            .onAppear { cotypistStats = CotypistImport.readStats() }
             .onAppear { usage = completer.ownUsage }
         }
     }

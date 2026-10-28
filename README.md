@@ -96,6 +96,9 @@ Impostazioni › Feedback (o dal menu nella barra › Invia un feedback):
   quel caso non compare niente.
 - Le correzioni in linea cancellano e riscrivono la parola appena finita: in qualche app questo passa dalla cronologia
   di Annulla.
+- Da Cotypist si riusano il modello già scaricato e le statistiche; le sue memorie sono cifrate e non si importano.
+- Un modello base (come quello di Cotypist) continua il testo ma non segue istruzioni: tono per app e riscrittura
+  della selezione passano ad Apple Intelligence o a un Gemma istruito.
 - L'app non è notarizzata: niente account Apple Developer. Le versioni pubblicate sono firmate con un'identità locale
   stabile, così macOS ricorda i permessi tra un aggiornamento e l'altro.
 

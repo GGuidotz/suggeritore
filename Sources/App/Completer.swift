@@ -130,11 +130,12 @@ final class Completer: ObservableObject {
 
     /// Il motore da usare per una richiesta. Con Gemma conta come uso del server (e lo avvia se è fermo); finché
     /// non è pronto risponde Apple Intelligence, se c'è, senza aspettare. nil: solo regole e memoria.
-    func activeEngine() -> (any CompletionEngine)? {
+    func activeEngine(forRewrite: Bool = false) -> (any CompletionEngine)? {
         guard let kind = preferredKind else { return nil }
         if kind == .gemma {
             llama.noteUse()
-            if let engine = llama.engine { return engine }
+            // Un modello base continua il testo ma non segue istruzioni: per riscrivere si passa ad Apple Intelligence.
+            if let engine = llama.engine, !(forRewrite && engine.rawCompletion) { return engine }
         }
         if apple.unavailableReason == nil { return apple }
         return nil

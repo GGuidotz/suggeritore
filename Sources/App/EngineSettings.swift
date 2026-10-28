@@ -139,6 +139,12 @@ private struct GemmaModelSection: View {
                 }
             }
             let entry = prefs.selectedModel
+            if entry.isLocalFile {
+                LabeledContent(L("File"), value: L("già sul Mac, nella cartella di Cotypist"))
+            }
+            if entry.usesRawCompletion {
+                Footnote(L("Modello base: continua il testo così com'è, in modo naturale, ma non segue le istruzioni (tono, per app) e non riscrive la selezione: per quello si usa Apple Intelligence."))
+            }
             if let repo = entry.hfRepo {
                 LabeledContent {
                     Text(repo).textSelection(.enabled)

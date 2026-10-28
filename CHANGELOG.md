@@ -12,6 +12,8 @@ Gemma 3 diventa il motore consigliato: suggerimenti più precisi e più rapidi, 
 - **Automatico.** Il motore predefinito: Gemma quando c'è llama.cpp, altrimenti Apple Intelligence, altrimenti regole e memoria. Mentre Gemma si avvia rispondono gli altri, senza aspettare.
 - **Ollama.** Se Ollama è aperto e ha già il modello (per esempio gemma3:1b), Suggeritore usa quello invece di avviare un server suo. Si spegne in Impostazioni › Motori.
 - **Più modelli.** Gemma 3 1B, 4B e 12B pronti da scegliere, più quelli che aggiungi tu con il repository Hugging Face o il nome in Ollama.
+- **Il modello di Cotypist.** Se hai Cotypist, il suo Gemma 3 1B base compare nel catalogo come consigliato e si usa subito, senza scaricare nulla. I modelli base continuano il testo in modo naturale; quelli istruiti seguono anche le tue istruzioni e riscrivono la selezione.
+- **Statistiche da Cotypist.** In Impostazioni › Generale puoi aggiungere al contatore le parole accettate finora in Cotypist. Le sue memorie sono cifrate e restano sue.
 - **Istruzioni per app.** Una frase per il modello che vale solo in un'app, in Impostazioni › App, con tre profili consigliati da accettare con un pulsante: Mail formale, Messaggi da chat, Note sintetico.
 - **Abbreviazioni.** Scrivi una sigla e poi uno spazio: diventa il testo intero ("cmq" diventa "comunque", ";firma" la tua firma). Le scegli tu in Impostazioni › Suggerimenti; nessuna è attiva in partenza.
 - **Stato a colpo d'occhio.** In cima a Impostazioni › Generale: lo stato, il motore in uso, le parole accettate oggi e da sempre, i suggerimenti accettati e il tempo medio di risposta. La stessa vista andrà nell'isola di Cocaine.

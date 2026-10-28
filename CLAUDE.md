@@ -9,10 +9,16 @@ app: testo grigio dopo il cursore, Tab per accettare. Tutto sul Mac. Stesso sche
   cura prima di consegnare. Controlli possibili nel cloud: `python3 -I tools/check-syntax.py` (tree-sitter) e
   `python3 -I tools/check-strings.py`.
 - `Sources/Core` non importa SwiftUI né AppKit (solo Foundation): regole, memoria delle frasi, costruzione dei prompt,
-  pulizia delle risposte. `Sources/App` è AppKit e SwiftUI; `Sources/App/Input` legge il campo (Accessibilità),
-  intercetta i tasti (CGEventTap) e inserisce il testo; `Sources/App/Engines` i motori (Apple Intelligence, regole).
-- Motori dietro il protocollo `CompletionEngine`: Apple Intelligence (FoundationModels, `#if canImport`), regole e
-  memoria delle frasi; Gemma via llama.cpp arriva nella 1.1 con la stessa interfaccia. Mai rete, mai dati fuori dal Mac.
+  pulizia delle risposte, abbreviazioni, catalogo dei modelli. `Sources/App` è AppKit e SwiftUI; `Sources/App/Input`
+  legge il campo (Accessibilità), intercetta i tasti (CGEventTap) e inserisce il testo; `Sources/App/Engines` i motori.
+  `Sources/Island` è la vista compatta dello stato (solo SwiftUI e dati semplici, `SuggeritoreStatusInfo`, colori
+  suoi): niente Completer né `Palette`, così si riusa nell'isola di Cocaine.
+- Motori dietro il protocollo `CompletionEngine` (con `partial` per lo streaming e `contextLimit`): Gemma via HTTP su
+  localhost (`LlamaEngine`, endpoint OpenAI `/v1/chat/completions`, sia il nostro `llama-server` gestito da
+  `LlamaServer` come processo figlio, sia Ollama su 11434), Apple Intelligence (FoundationModels, `#if canImport`),
+  regole e memoria delle frasi. `Completer.activeEngine()` sceglie (Automatico: Gemma, poi Apple, poi regole; mentre
+  Gemma si avvia risponde Apple). Mai dati fuori dal Mac: solo 127.0.0.1; la rete serve solo a llama.cpp per
+  scaricare il modello.
 - Sicurezza: niente in campi password (`AXSecureTextField`), niente con l'input sicuro acceso, lista di app escluse.
   La diagnostica non registra testo scritto, nomi di finestre o di file: solo conteggi e stati.
 - Testi: chiave = frase italiana, `L("…")`; ogni chiave nuova va in `Localization/en.lproj/Localizable.strings`.

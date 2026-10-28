@@ -12,6 +12,8 @@ Gemma 3 becomes the recommended engine: more accurate, faster suggestions that a
 - **Automatic.** The default engine: Gemma when llama.cpp is there, otherwise Apple Intelligence, otherwise rules and memory. While Gemma starts, the others answer, without waiting.
 - **Ollama.** If Ollama is open and already has the model (for example gemma3:1b), Suggeritore uses it instead of starting its own server. You can turn this off in Settings › Engines.
 - **More models.** Gemma 3 1B, 4B and 12B ready to choose, plus the ones you add with a Hugging Face repository or an Ollama name.
+- **Cotypist's model.** If you have Cotypist, its Gemma 3 1B base model shows up in the catalog as recommended and works right away, with nothing to download. Base models continue the text naturally; instruction-tuned ones also follow your instructions and rewrite the selection.
+- **Statistics from Cotypist.** In Settings › General you can add the words accepted so far in Cotypist to the counter. Its memories are encrypted and stay its own.
 - **Instructions per app.** One sentence for the model that applies only in one app, in Settings › Apps, with three recommended profiles you accept with a button: formal Mail, chatty Messages, concise Notes.
 - **Abbreviations.** Type an abbreviation and then a space: it becomes the full text ("btw" becomes "by the way", ";sign" your signature). You choose them in Settings › Suggestions; none is active by default.
 - **Status at a glance.** At the top of Settings › General: the state, the engine in use, words accepted today and all time, accepted suggestions and the average response time. The same view will go into Cocaine's island.

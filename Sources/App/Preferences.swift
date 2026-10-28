@@ -58,6 +58,8 @@ final class Preferences: ObservableObject {
     @Published var llamaServerPath: String? { didSet { defaults.set(llamaServerPath, forKey: "llamaServerPath") } }
     /// Parole accettate da sempre: un numero che fa piacere vedere.
     @Published var acceptedWordsTotal: Int { didSet { defaults.set(acceptedWordsTotal, forKey: "acceptedWordsTotal") } }
+    /// Le statistiche di Cotypist sono già state sommate al contatore.
+    @Published var cotypistImported: Bool { didSet { defaults.set(cotypistImported, forKey: "cotypistImported") } }
     /// Parole accettate nel giorno `acceptedWordsDay` ("2026-10-28").
     @Published private(set) var acceptedWordsToday: Int { didSet { defaults.set(acceptedWordsToday, forKey: "acceptedWordsToday") } }
     @Published private(set) var acceptedWordsDay: String { didSet { defaults.set(acceptedWordsDay, forKey: "acceptedWordsDay") } }
@@ -101,6 +103,7 @@ final class Preferences: ObservableObject {
         useOllama = d.object(forKey: "useOllama") as? Bool ?? true
         llamaServerPath = d.string(forKey: "llamaServerPath")
         acceptedWordsTotal = d.integer(forKey: "acceptedWordsTotal")
+        cotypistImported = d.bool(forKey: "cotypistImported")
         acceptedWordsToday = d.integer(forKey: "acceptedWordsToday")
         acceptedWordsDay = d.string(forKey: "acceptedWordsDay") ?? ""
         onboardingDone = d.bool(forKey: "onboardingDone")

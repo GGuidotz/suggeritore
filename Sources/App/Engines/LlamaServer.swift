@@ -143,7 +143,7 @@ final class LlamaServer: ObservableObject {
     /// Gemma si può usare (subito o dopo l'avvio): per la scelta "Automatico".
     var isAvailable: Bool {
         let entry = prefs.selectedModel
-        if isInstalled, entry.hfRepo != nil { return true }
+        if isInstalled, entry.hfRepo != nil || entry.localPath != nil { return true }
         return prefs.useOllama && ollamaHas(entry)
     }
 
@@ -227,7 +227,7 @@ final class LlamaServer: ObservableObject {
 
     private func connectOllama(_ entry: ModelEntry, name: String) {
         backend = .ollama
-        engine = LlamaEngine(baseURL: LocalHTTP.ollamaBase, model: name, displayName: entry.title)
+        engine = LlamaEngine(baseURL: LocalHTTP.ollamaBase, model: name, displayName: entry.title, rawCompletion: false)
         state = .ready
         scheduleIdleTimer()
         diag(.engine, "gemma via Ollama (\(entry.id))")
@@ -243,7 +243,16 @@ final class LlamaServer: ObservableObject {
             }
             return
         }
-        guard let repo = entry.hfRepo, !repo.isEmpty else {
+        // Da dove viene il modello: un file già sul Mac (-m) o un repository Hugging Face da scaricare (-hf).
+        let source: [String]
+        if let local = entry.localPath, FileManager.default.fileExists(atPath: local) {
+            source = ["-m", local]
+        } else if let repo = entry.hfRepo, !repo.isEmpty {
+            source = ["-hf", repo]
+        } else if entry.localPath != nil {
+            fail(L("Il file del modello non c'è più: scegli un altro modello in Impostazioni › Motori."))
+            return
+        } else {
             fail(L("Questo modello si usa solo con Ollama: apri Ollama e scaricalo con \"ollama pull\"."))
             return
         }
@@ -251,7 +260,7 @@ final class LlamaServer: ObservableObject {
         let cached = Self.isCached(entry)
         // Da verificare sul Mac con la versione di Homebrew: --no-webui e --cache-reuse ci sono nelle versioni del
         // 2025; se llama-server li rifiuta, il tentativo dopo parte senza.
-        var arguments = ["--host", "127.0.0.1", "--port", "\(port)", "-hf", repo, "-c", "2048", "-ngl", "99"]
+        var arguments = ["--host", "127.0.0.1", "--port", "\(port)"] + source + ["-c", "2048", "-ngl", "99"]
         if !minimalArguments { arguments += ["--no-webui", "--cache-reuse", "256"] }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: path)
@@ -321,7 +330,7 @@ final class LlamaServer: ObservableObject {
     private func becameReady(port: Int, entry: ModelEntry) {
         guard let base = URL(string: "http://127.0.0.1:\(port)") else { return }
         backend = .llamaServer
-        engine = LlamaEngine(baseURL: base, model: entry.id, displayName: entry.title)
+        engine = LlamaEngine(baseURL: base, model: entry.id, displayName: entry.title, rawCompletion: entry.usesRawCompletion)
         state = .ready
         lastLogLine = nil
         scheduleIdleTimer()
@@ -444,6 +453,7 @@ final class LlamaServer: ObservableObject {
     /// Vero se nella cache di llama.cpp c'è già un file GGUF di quel modello (da verificare sul Mac: i nomi dei file
     /// cambiano tra le versioni di llama.cpp, ma contengono il nome del repository).
     static func isCached(_ entry: ModelEntry) -> Bool {
+        if entry.localPath != nil { return true }
         guard let repo = entry.hfRepo else { return false }
         let last = repo.split(separator: "/").last.map(String.init) ?? repo
         let name = last.lowercased().replacingOccurrences(of: "-gguf", with: "")

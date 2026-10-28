@@ -91,6 +91,9 @@ Settings › Feedback (or menu bar › Send feedback):
 - The models read only the end of the text, not the whole document: Gemma the last two thousand characters before the
   cursor, Apple Intelligence the last seven hundred. Apple's filters may refuse some texts: then nothing appears.
 - Inline corrections delete and retype the word you just finished: in some apps this goes through Undo history.
+- From Cotypist the downloaded model and the statistics are reused; its memories are encrypted and can't be imported.
+- A base model (like Cotypist's) continues the text but doesn't follow instructions: per-app tone and rewriting the
+  selection fall back to Apple Intelligence or an instruction-tuned Gemma.
 - The app is not notarized: no Apple Developer account. Released builds are signed with a stable local identity, so
   macOS remembers the permissions across updates.
 

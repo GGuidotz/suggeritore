@@ -16,13 +16,39 @@ struct ModelEntry: Codable, Identifiable, Equatable, Hashable {
     var isBuiltIn: Bool
     /// Il modello che consigliamo.
     var isRecommended: Bool = false
+    /// Un file GGUF già sul Mac (per esempio quello di Cotypist): llama-server lo apre con -m, senza scaricare.
+    var localPath: String? = nil
+    /// Un modello base (non istruito): continua il testo così com'è (endpoint /completion di llama-server) e non
+    /// segue istruzioni. È la scelta migliore per l'autocompletamento, ma non riscrive la selezione.
+    var isBaseModel: Bool? = nil
+
+    var usesRawCompletion: Bool { isBaseModel ?? false }
+    var isLocalFile: Bool { localPath != nil }
 
     /// "Gemma 3 1B · circa 0,8 GB"
     var titleWithSize: String { sizeHint.isEmpty ? title : "\(title) · \(sizeHint)" }
 }
 
 enum ModelCatalog {
-    static let defaultID = "gemma3-1b"
+    /// Il modello di partenza: quello di Cotypist se è già sul Mac, altrimenti Gemma 3 1B da scaricare.
+    static var defaultID: String { localModels().first?.id ?? "gemma3-1b" }
+
+    /// I GGUF già sul Mac, oggi quelli di Cotypist: niente da scaricare. Un file con "-pt" nel nome è un modello base.
+    static func localModels() -> [ModelEntry] {
+        var out: [ModelEntry] = []
+        for url in CotypistImport.modelFiles() {
+            let file = url.lastPathComponent
+            let lower = file.lowercased()
+            let isBase = lower.contains("-pt") || lower.contains("_pt")
+            var title = file.replacingOccurrences(of: ".gguf", with: "")
+            if lower.contains("gemma-3-1b") { title = isBase ? L("Gemma 3 1B base") : "Gemma 3 1B" }
+            else if lower.contains("gemma-3-4b") { title = isBase ? L("Gemma 3 4B base") : "Gemma 3 4B" }
+            out.append(ModelEntry(id: "local-cotypist-" + lower, title: title + " " + L("(da Cotypist)"), hfRepo: nil,
+                                  ollamaName: nil, sizeHint: L("già sul Mac"), isBuiltIn: true, isRecommended: out.isEmpty,
+                                  localPath: url.path, isBaseModel: isBase))
+        }
+        return out
+    }
 
     /// I modelli pronti. Nomi dei repository da verificare sul Mac: ggml-org pubblica i GGUF ufficiali di Gemma 3
     /// (gemma-3-1b-it-GGUF, gemma-3-4b-it-GGUF, gemma-3-12b-it-GGUF); llama.cpp sceglie da solo la quantizzazione.
@@ -37,9 +63,15 @@ enum ModelCatalog {
         ]
     }
 
-    /// I pronti, poi i tuoi.
+    /// Quelli già sul Mac, i pronti, poi i tuoi.
     static func all(custom: [ModelEntry]) -> [ModelEntry] {
-        var out = builtIn
+        var out = localModels()
+        let local = !out.isEmpty
+        for entry in builtIn {
+            var copy = entry
+            if local { copy.isRecommended = false }   // con un modello già sul Mac, è quello il consigliato
+            out.append(copy)
+        }
         for entry in custom where !out.contains(where: { $0.id == entry.id }) {
             out.append(entry)
         }

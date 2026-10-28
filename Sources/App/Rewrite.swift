@@ -51,8 +51,8 @@ final class RewriteController: NSObject, ObservableObject, NSWindowDelegate {
 
     private func run(instruction: String) {
         guard !original.isEmpty else { return }
-        guard let engine = completer.activeEngine() else {
-            state = .failed(L("Nessun modello disponibile: scegli un motore in Impostazioni › Motori."))
+        guard let engine = completer.activeEngine(forRewrite: true) else {
+            state = .failed(L("Nessun modello istruito disponibile: per riscrivere serve Apple Intelligence o un Gemma istruito (Impostazioni › Motori)."))
             return
         }
         if let why = engine.unavailableReason { state = .failed(why); return }
