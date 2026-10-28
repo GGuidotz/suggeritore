@@ -16,6 +16,7 @@ Suggeritore becomes Type_w/Me: faster suggestions, context from the screen, an e
 - **Maximum words.** A slider from 1 to 20 instead of the length choice; at 1 it completes only the word you are typing, never the next one: spelling help without suggestions on what to write.
 - **Typos.** If the word you are typing already looks misspelled, no suggestion: it would extend the mistake. Turn it off in Settings › Suggestions.
 - **Battery mode.** On battery (or in Low Power Mode) the pause grows by half, the screen is not read and the model stops after the chosen idle minutes.
+- **Context from the app.** The model reads, through Accessibility, the title and text of the window you are writing in (the email or chat you are replying to, the page) and writes the continuation as a reply in that conversation. No extra permissions, in memory only, on by default; turn it off in Settings › Apps. The context stays fixed for the same field, so the prompt stays in the cache.
 
 ### Improvements
 - **Faster suggestions.** The text sent to Gemma keeps the same beginning for hundreds of keys and at most 1,200 characters, and llama-server keeps Gemma 3's full cache with a single slot: the already processed prompt is reused instead of redone on every request.

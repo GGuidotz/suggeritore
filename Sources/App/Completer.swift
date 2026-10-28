@@ -62,6 +62,9 @@ final class Completer: ObservableObject {
     let overlay = GhostOverlay()
     private lazy var rules = RulesEngine(memory: memory)
     let screen = ScreenContext()
+    let windowText = WindowText()
+    /// Il contesto della finestra fermo per campo: cambia di rado, così il prompt resta nella cache di llama.cpp.
+    private var frozenContext: (field: String, title: String?, text: String?, date: Date)?
     let history = TypingHistory()
     /// Il campo in cui si sta scrivendo (per la cronologia) e i tuoi testi scelti per lui: restano gli stessi finché
     /// resti nel campo, così l'inizio del prompt non cambia e resta nella cache.
@@ -307,6 +310,8 @@ final class Completer: ObservableObject {
     private func appChanged() {
         frontApp = FocusReader.frontmostApp()
         screen.invalidate()
+        windowText.invalidate()
+        frozenContext = nil
         history.endAll(recordWithoutAccepting: prefs.recordWithoutAccepting)
         historyField = nil
         ownWriting = nil
@@ -451,13 +456,16 @@ final class Completer: ObservableObject {
         // Gemma: inizio del testo ancorato, così llama.cpp riusa il prompt già elaborato (Models.swift, anchored).
         let limited = engine.kind == .gemma ? context.anchored(caret: field.caret, max: engine.contextLimit)
                                             : context.limited(to: engine.contextLimit)
-        let request = CompletionRequest(context: limited, length: prefs.length,
-                                        language: language, instructions: prefs.instructions,
-                                        appInstructions: prefs.instruction(forApp: field.bundleID),
-                                        clipboard: clipboardIfAllowed(),
-                                        screen: screenIfAllowed(pid: field.pid, before: limited.before),
-                                        ownWriting: ownWritingFor(field: field, before: before),
-                                        wordLimit: prefs.maxWords)
+        let window = windowContext(field: field, before: limited.before)
+        var draft = CompletionRequest(context: limited, length: prefs.length,
+                                      language: language, instructions: prefs.instructions,
+                                      appInstructions: prefs.instruction(forApp: field.bundleID),
+                                      clipboard: clipboardIfAllowed(),
+                                      screen: window.text,
+                                      ownWriting: ownWritingFor(field: field, before: before),
+                                      wordLimit: prefs.maxWords)
+        draft.windowTitle = window.title
+        let request = draft
         let source: SuggestionSource = engine.kind == .gemma ? .gemma : .apple
         let started = Date()
         let readMs = started.timeIntervalSince(readBegan) * 1000
@@ -601,16 +609,46 @@ final class Completer: ObservableObject {
         return prefs.delay * 1.5
     }
 
-    /// Il testo della finestra in primo piano, senza le righe che sono già nel testo prima del cursore (lo schermo
-    /// mostra anche quello che stai scrivendo). nil se spento, senza permesso o a batteria con la modalità batteria.
+    /// Il contesto della finestra in cui scrivi: titolo e testo letti con Accessibilità (Contesto dall'app) e, se
+    /// quello è poco, il testo riconosciuto sullo schermo. Resta fermo per lo stesso campo fino a 45 secondi: un
+    /// prompt che cambia a ogni richiesta andrebbe rielaborato da capo.
+    private func windowContext(field: FocusedField, before: String) -> (title: String?, text: String?) {
+        let key = Self.key(for: field)
+        if let f = frozenContext, f.field == key, f.text != nil, Date().timeIntervalSince(f.date) < 45 {
+            return (f.title, f.text)
+        }
+        var title: String?
+        var text: String?
+        if prefs.appContext, let snapshot = windowText.context(for: field) {
+            title = snapshot.title
+            text = Self.withoutTyped(snapshot.text, before: before)
+        }
+        if (text?.count ?? 0) < 200, let seen = screenIfAllowed(pid: field.pid, before: before), seen.count > (text?.count ?? 0) {
+            text = seen
+        }
+        frozenContext = (key, title, text, Date())
+        return (title, text)
+    }
+
+    /// Il testo della finestra in primo piano riconosciuto sullo schermo. nil se spento, senza permesso o a batteria
+    /// con la modalità batteria.
     private func screenIfAllowed(pid: pid_t, before: String) -> String? {
         guard prefs.screenContext, !(prefs.batterySaver && Power.shouldSave) else { return nil }
         guard let text = screen.text(for: pid) else { return nil }
+        return Self.withoutTyped(text, before: before)
+    }
+
+    /// Senza le righe che sono già nel testo prima del cursore (la finestra mostra anche quello che stai scrivendo).
+    private static func withoutTyped(_ text: String, before: String) -> String? {
         let lines = text.split(separator: "\n").filter { line in
             line.count < 12 || !before.contains(line)
         }
         let joined = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-        return joined.isEmpty ? nil : String(joined.prefix(Prompting.maxScreen))
+        guard !joined.isEmpty else { return nil }
+        // Troppo lungo: l'inizio (l'oggetto, il titolo della pagina) e la fine (in una chat, gli ultimi messaggi).
+        let half = Prompting.maxScreen / 2
+        guard joined.count > Prompting.maxScreen else { return joined }
+        return String(joined.prefix(half)) + "\n…\n" + String(joined.suffix(half))
     }
 
     private func clipboardIfAllowed() -> String? {

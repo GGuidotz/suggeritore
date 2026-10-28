@@ -24,8 +24,8 @@ enum Prompting {
         if r.clipboard != nil {
             lines.append("- Use the clipboard only if it clearly helps (names, numbers, addresses).")
         }
-        if r.screen != nil {
-            lines.append("- The screen text shows what the user is looking at: use it for names, facts and the topic, never copy it blindly.")
+        if r.screen != nil || r.windowTitle != nil {
+            lines.append("- The window text shows what the user is replying to or looking at (a message, a chat, a page): continue as a reply in that conversation, with its names, facts, dates and topic. Never copy it blindly.")
         }
         if !r.ownWriting.isEmpty {
             lines.append("- Earlier texts by the user are given: prefer their words, phrases and style.")
@@ -45,11 +45,12 @@ enum Prompting {
         // Prima ciò che cambia di rado (app, scritti tuoi, schermo, appunti), poi il testo: così l'inizio del prompt
         // resta uguale tra una richiesta e l'altra e llama.cpp lo riprende dalla cache.
         var out = "App: \(r.context.appName.isEmpty ? "unknown" : r.context.appName)\n"
+        if let title = r.windowTitle { out += "Window: \(String(title.prefix(120)))\n" }
         for (i, own) in r.ownWriting.enumerated() {
             out += "Earlier text by the user (\(i + 1)):\n«\(own)»\n"
         }
         if let screen = r.screen, !screen.isEmpty {
-            out += "Text on screen:\n«\(String(screen.prefix(Self.maxScreen)))»\n"
+            out += "Text in the window:\n«\(String(screen.prefix(Self.maxScreen)))»\n"
         }
         if let clip = r.clipboard, !clip.isEmpty {
             out += "Clipboard:\n«\(String(clip.prefix(500)))»\n"
@@ -81,11 +82,17 @@ enum Prompting {
         let forApp = r.appInstructions.trimmingCharacters(in: .whitespacesAndNewlines)
         if !forApp.isEmpty { header.append("Writing in \(r.context.appName.isEmpty ? "this app" : r.context.appName): \(forApp)") }
         for piece in r.ownWriting { header.append("Earlier text by the same writer:\n\(piece)") }
-        if let screen = r.screen, !screen.isEmpty { header.append("On screen:\n\(String(screen.prefix(maxScreen)))") }
+        // L'app e la finestra dicono che cosa si sta scrivendo (una risposta a una mail, un messaggio in una chat), il
+        // testo della finestra il "di che cosa": un modello base lo usa se lo vede come la conversazione a cui si risponde.
+        if let title = r.windowTitle {
+            let app = r.context.appName.isEmpty ? "" : "\(r.context.appName): "
+            header.append("\(app)\(String(title.prefix(120)))")
+        }
+        if let screen = r.screen, !screen.isEmpty { header.append("In the window (what the writer is replying to):\n\(String(screen.prefix(maxScreen)))") }
         // Un modello base copia quello che vede: dagli appunti solo testo scritto, non codici, link o colonne di numeri.
         if let clip = r.clipboard, isProse(clip) { header.append("Clipboard:\n\(String(clip.prefix(500)))") }
         guard !header.isEmpty else { return r.context.before }
-        return header.joined(separator: "\n\n") + "\n\n---\n\n" + r.context.before
+        return header.joined(separator: "\n\n") + "\n\n---\nThe writer's text:\n" + r.context.before
     }
 
     /// Almeno quattro parole e soprattutto lettere.

@@ -10,6 +10,8 @@ Type_w/Me lavora sul tuo Mac e non ha server suoi. Nessun account, nessuna telem
   mentre scrivi. Mai i campi password e mai con l'input sicuro acceso.
 - **I tasti**, per Tab, Maiusc-Tab, Esc e per accorgersi che riprendi a scrivere. Non registra quello che premi, a parte
   la cronologia di scrittura se la accendi (vedi sotto).
+- **La finestra in cui scrivi**, se "L'app in cui scrivi come contesto" è accesa (lo è in partenza): titolo e testo
+  della finestra letti con Accessibilità ogni pochi secondi, solo in memoria. Il campo password non si legge mai.
 - **Gli appunti**, solo se scegli "Appunti come contesto".
 - **Lo schermo**, solo se accendi il contesto dallo schermo: il testo della finestra in cui scrivi si riconosce sul Mac
   (Vision) ogni pochi secondi e resta in memoria. L'immagine non si salva.
@@ -56,6 +58,8 @@ Type_w/Me works on your Mac and has no servers of its own. No account, no teleme
   you type. Never password fields, and never with secure input on.
 - **Keys**, for Tab, Shift-Tab, Esc and to notice when you resume typing. It does not record what you press, apart from
   the writing history if you turn it on (see below).
+- **The window you're typing in**, if "The app you are writing in as context" is on (it is by default): the window
+  title and text read through Accessibility every few seconds, in memory only. Password fields are never read.
 - **The clipboard**, only if you choose "Clipboard as context".
 - **The screen**, only if you turn on screen context: the text of the window you're typing in is recognized on the Mac
   (Vision) every few seconds and stays in memory. The image is not saved.

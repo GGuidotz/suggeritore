@@ -146,6 +146,7 @@ enum DiagnosticsReport {
         row("Italian corrections", "\(yesNo(prefs.italianCorrections)), capitalize \(yesNo(prefs.capitalizeSentences))")
         row("Phrase memory", "\(yesNo(prefs.phraseMemory)), \(completer.memory.count) entries")
         row("Clipboard as context", yesNo(prefs.clipboardContext))
+        row("App as context", "\(yesNo(prefs.appContext)), \(completer.windowText.reads) reads, last \(completer.windowText.lastCharacters) characters")
         row("Screen as context", "\(yesNo(prefs.screenContext)), permission \(yesNo(ScreenContext.hasPermission)), \(completer.screen.captures) captures" + (completer.screen.lastDurationMs.map { ", last \($0) ms" } ?? ""))
         row("Hide on typo", yesNo(prefs.hideOnTypo))
         row("Battery saver", "\(yesNo(prefs.batterySaver)), on battery now \(yesNo(Power.onBattery))")

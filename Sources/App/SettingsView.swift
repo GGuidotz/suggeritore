@@ -344,6 +344,7 @@ private struct AppsSettings: View {
     var body: some View {
         Form {
             Section {
+                Toggle(L("Usa l'app in cui scrivi come contesto"), isOn: $prefs.appContext)
                 Toggle(L("Usa gli appunti come contesto"), isOn: $prefs.clipboardContext)
                 Toggle(L("Usa lo schermo come contesto"), isOn: Binding(
                     get: { prefs.screenContext },
@@ -365,7 +366,7 @@ private struct AppsSettings: View {
             } header: {
                 Text(L("Contesto"))
             } footer: {
-                Footnote(L("Con gli appunti il modello vede anche l'ultima cosa che hai copiato (nomi, numeri, indirizzi) e la usa se c'entra. Con lo schermo legge il testo della finestra in cui scrivi (una mail a cui rispondi, una pagina), riconosciuto sul Mac, al più ogni pochi secondi e mai a ogni tasto; il testo resta in memoria e non si salva. Spenti, appunti e schermo non vengono letti mai. Dopo aver concesso il permesso può servire riaprire l'app."))
+                Footnote(L("Con l'app il modello legge con Accessibilità il titolo e il testo della finestra in cui scrivi (la mail o la chat a cui rispondi, la pagina), senza il campo in cui scrivi, al più ogni pochi secondi: niente permessi in più. Con gli appunti il modello vede anche l'ultima cosa che hai copiato (nomi, numeri, indirizzi) e la usa se c'entra. Con lo schermo legge il testo della finestra in cui scrivi (una mail a cui rispondi, una pagina), riconosciuto sul Mac, al più ogni pochi secondi e mai a ogni tasto; il testo resta in memoria e non si salva. Spenti, appunti e schermo non vengono letti mai. Dopo aver concesso il permesso può servire riaprire l'app."))
             }
 
             Section {

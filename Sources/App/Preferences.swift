@@ -51,6 +51,8 @@ final class Preferences: ObservableObject {
     @Published var clipboardDecided: Bool { didSet { defaults.set(clipboardDecided, forKey: "clipboardDecided") } }
     /// Il testo visibile nella finestra in primo piano come contesto (serve il permesso Registrazione schermo).
     @Published var screenContext: Bool { didSet { defaults.set(screenContext, forKey: "screenContext") } }
+    /// Il titolo e il testo della finestra in cui scrivi, letti con Accessibilità: acceso in partenza.
+    @Published var appContext: Bool { didSet { defaults.set(appContext, forKey: "appContext") } }
     /// Niente suggerimento quando la parola che stai scrivendo sembra già sbagliata.
     @Published var hideOnTypo: Bool { didSet { defaults.set(hideOnTypo, forKey: "hideOnTypo") } }
     /// A batteria: pausa più lunga, niente contesto dallo schermo, modello spento dopo i minuti di inattività.
@@ -129,6 +131,7 @@ final class Preferences: ObservableObject {
         clipboardContext = d.bool(forKey: "clipboardContext")
         clipboardDecided = d.bool(forKey: "clipboardDecided")
         screenContext = d.bool(forKey: "screenContext")
+        appContext = d.object(forKey: "appContext") as? Bool ?? true
         hideOnTypo = d.object(forKey: "hideOnTypo") as? Bool ?? true
         batterySaver = d.object(forKey: "batterySaver") as? Bool ?? true
         recordHistory = d.bool(forKey: "recordHistory")

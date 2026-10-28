@@ -153,6 +153,8 @@ struct CompletionRequest {
     var ownWriting: [String] = []
     /// Parole al massimo scelte con lo slider; 0: quelle della lunghezza.
     var wordLimit: Int = 0
+    /// Il titolo della finestra in cui si scrive (oggetto della mail, nome del documento, chat), se Contesto dall'app.
+    var windowTitle: String?
 
     var maxWords: Int { wordLimit > 0 ? wordLimit : length.maxWords }
     var maxTokens: Int { maxWords * 2 + 8 }

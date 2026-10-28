@@ -16,6 +16,7 @@ Suggeritore diventa Type_w/Me: suggerimenti più rapidi, contesto dallo schermo,
 - **Parole al massimo.** Uno slider da 1 a 20 al posto della scelta della lunghezza; con 1 completa solo la parola che stai scrivendo, mai quella dopo: aiuto all'ortografia senza suggerimenti su cosa scrivere.
 - **Refusi.** Se la parola che stai scrivendo sembra già sbagliata, niente suggerimento: lo allungherebbe con l'errore. Si spegne in Impostazioni › Suggerimenti.
 - **Modalità batteria.** A batteria (o con Risparmio energia) la pausa si allunga della metà, lo schermo non si legge e il modello si spegne dopo i minuti di inattività scelti.
+- **Contesto dall'app.** Il modello legge con Accessibilità il titolo e il testo della finestra in cui scrivi (la mail o la chat a cui rispondi, la pagina) e scrive il seguito come risposta in quella conversazione. Niente permessi in più, solo in memoria, acceso in partenza; si spegne in Impostazioni › App. Il contesto resta fermo per lo stesso campo, così il prompt resta nella cache.
 
 ### Miglioramenti
 - **Suggerimenti più rapidi.** Il testo mandato a Gemma ha l'inizio fermo per centinaia di tasti e al massimo 1.200 caratteri, e llama-server tiene la cache intera di Gemma 3 con un solo slot: il prompt già elaborato si riusa invece di rifarlo a ogni richiesta.
