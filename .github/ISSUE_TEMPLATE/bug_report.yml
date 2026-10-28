@@ -1,0 +1,23 @@
+name: Problema / Problem
+description: Qualcosa non funziona come dovrebbe. Something doesn't work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Cosa succede / What happens
+      description: In quale app scrivevi, cosa ti aspettavi, cosa è successo. Non incollare il testo che stavi scrivendo se è privato. Which app you were typing in, what you expected, what happened. Don't paste private text.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: App, macOS, Mac
+      description: Compilato dall'app (Impostazioni › Feedback). Filled in by the app (Settings › Feedback).
+      placeholder: Suggeritore 0.1.0 (12) · macOS 26.1 · Mac14,2 · it
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostica / Diagnostics
+      description: Impostazioni › Feedback › Copia report, poi incolla qui. Settings › Feedback › Copy Report, then paste here.
+      render: markdown
