@@ -1,5 +1,6 @@
-// La guida dei primi passi: cinque schermate brevi al primo avvio (e da Impostazioni › Generale o dal menu). Cosa fa
-// l'app, i due permessi (chiesti qui, spiegando perché), come si usa, le scelte sulla privacy, una prova dal vivo.
+// La guida dei primi passi: sei schermate brevi al primo avvio (e da Impostazioni › Generale o dal menu). Cosa fa
+// l'app, i due permessi (chiesti qui, spiegando perché), il motore (Gemma con llama.cpp o Apple Intelligence), come si
+// usa, le scelte sulla privacy, una prova dal vivo.
 // Ogni scelta qui è la stessa delle impostazioni, quindi si può chiudere in qualunque momento.
 // HIG (onboarding.md): breve, si impara usando, i permessi si chiedono nel momento in cui servono e spiegando perché.
 
@@ -49,9 +50,10 @@ struct OnboardingView: View {
     @State private var accessibility = Permissions.accessibility
     @State private var inputMonitoring = Permissions.inputMonitoring
     @State private var tryText = ""
+    @State private var llamaInstalled = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private let steps = 5
+    private let steps = 6
 
     var body: some View {
         VStack(spacing: 0) {
@@ -59,8 +61,9 @@ struct OnboardingView: View {
                 switch step {
                 case 0: welcome
                 case 1: permissions
-                case 2: howItWorks
-                case 3: choices
+                case 2: engine
+                case 3: howItWorks
+                case 4: choices
                 default: ready
                 }
             }
@@ -78,7 +81,12 @@ struct OnboardingView: View {
             accessibility = Permissions.accessibility
             inputMonitoring = Permissions.inputMonitoring
             if accessibility, !completer.monitor.isRunning { completer.startMonitorIfPossible() }
+            if step == 2 {
+                completer.llama.refreshInstalled()
+                llamaInstalled = completer.llama.isInstalled
+            }
         }
+        .onAppear { llamaInstalled = completer.llama.isInstalled }
     }
 
     // MARK: - Passi
@@ -126,6 +134,28 @@ struct OnboardingView: View {
         }
     }
 
+    private var engine: some View {
+        StepPage(symbol: "cpu", title: L("Il motore"),
+                 text: L("Gemma 3 1B è il consigliato: più preciso e più veloce; serve llama.cpp, che si installa con Homebrew, e al primo uso scarica circa 0,8 GB. Apple Intelligence è già sul Mac, senza installare niente, ma è più debole.")) {
+            if llamaInstalled {
+                Label(L("llama.cpp è installato: Gemma parte alla prima richiesta."), systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(Palette.calm)
+            } else {
+                LlamaInstallBox()
+                    .contentCard()
+            }
+            AppleStatusLabel(readyText: L("Apple Intelligence è pronta: il modello gira sul Mac."))
+            Picker(L("Motore"), selection: $prefs.engine) {
+                Text(EngineChoice.auto.title).tag(EngineChoice.auto)
+                Text(EngineChoice.gemma.title).tag(EngineChoice.gemma)
+                Text(EngineChoice.apple.title).tag(EngineChoice.apple)
+            }
+            .pickerStyle(.segmented)
+            .padding(.top, 4)
+            Footnote(L("Consigliato: Automatico. Usa Gemma quando c'è llama.cpp, altrimenti Apple Intelligence. Si cambia in Impostazioni › Motori."))
+        }
+    }
+
     private var howItWorks: some View {
         StepPage(symbol: "keyboard", title: L("Come si usa"),
                  text: L("Scrivi come sempre. Dopo una breve pausa compare il seguito in grigio.")) {
@@ -158,15 +188,6 @@ struct OnboardingView: View {
             Footnote(L("Con gli appunti il modello vede anche l'ultima cosa che hai copiato (un nome, un numero, un indirizzo) e la usa se serve al seguito. Resta sul Mac."))
             Toggle(L("Correzioni italiane in linea (\"perche\" diventa \"perché\")"), isOn: $prefs.italianCorrections)
             Toggle(L("Ricorda le frasi che accetto e riproponile"), isOn: $prefs.phraseMemory)
-            let reason = AppleEngine.unavailableReason
-            Label {
-                Text(reason ?? L("Apple Intelligence è pronta: il modello gira sul Mac.")).fixedSize(horizontal: false, vertical: true)
-            } icon: {
-                Image(systemName: reason == nil ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                    .foregroundStyle(reason == nil ? Palette.calm : Color.orange)
-            }
-            .font(.callout)
-            .padding(.top, 6)
         }
     }
 
@@ -178,7 +199,7 @@ struct OnboardingView: View {
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 15))
             if !completer.monitor.isRunning {
-                Footnote(L("Manca il permesso Accessibilità: torna indietro di tre passi per concederlo."))
+                Footnote(L("Manca il permesso Accessibilità: torna indietro di quattro passi per concederlo."))
             }
             Tip(symbol: "menubar.rectangle", text: L("Nella barra dei menu trovi lo stato, la pausa e \"Suggerisci in questa app\" per spegnere Suggeritore dove non lo vuoi."))
             Tip(symbol: "lock", text: L("Nei campi password e nelle app con input sicuro non suggerisce mai. Gestori di password e Terminale sono esclusi in partenza."))

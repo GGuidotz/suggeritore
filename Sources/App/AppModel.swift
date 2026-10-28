@@ -27,7 +27,7 @@ final class AppModel: ObservableObject {
         self.prefs = prefs
         let completer = Completer(prefs: prefs)
         self.completer = completer
-        rewrite = RewriteController(prefs: prefs, engine: completer.apple, completer: completer)
+        rewrite = RewriteController(prefs: prefs, completer: completer)
         updater = Updater(prefs: prefs)
         completer.onRewriteRequested = { [weak self] in self?.rewrite.trigger() }
     }

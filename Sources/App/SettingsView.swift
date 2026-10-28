@@ -1,5 +1,6 @@
 // Impostazioni (⌘,): sei schede sotto una barra di vetro che galleggia. Solo ciò che si cambia di rado, più
-// aggiornamenti e feedback, come nelle altre app della famiglia.
+// aggiornamenti e feedback, come nelle altre app della famiglia. In cima a Generale la vista compatta dello stato
+// (Sources/Island); la scheda Motori sta in Sources/App/EngineSettings.swift.
 
 import AppKit
 import SwiftUI
@@ -21,7 +22,7 @@ struct SettingsView: View {
             case .general: GeneralSettings(model: model, prefs: prefs, completer: model.completer)
             case .suggestions: SuggestionSettings(prefs: prefs, completer: model.completer)
             case .apps: AppsSettings(prefs: prefs, completer: model.completer)
-            case .intelligence: IntelligenceSettings(prefs: prefs, completer: model.completer)
+            case .engines: EngineSettings(prefs: prefs, completer: model.completer, llama: model.completer.llama)
             case .updates: UpdatesSettings(updater: model.updater, prefs: prefs)
             case .feedback: FeedbackSettings(model: model)
             }
@@ -63,8 +64,11 @@ private struct GeneralSettings: View {
     var body: some View {
         Form {
             Section {
+                SuggeritoreStatusView(info: completer.statusInfo, labels: .localized)
+            }
+
+            Section {
                 Toggle(L("Suggerimenti attivi"), isOn: Binding(get: { prefs.enabled }, set: { completer.setEnabled($0) }))
-                LabeledContent(L("Stato"), value: completer.status.title)
                 Toggle(L("Apri all'accesso"), isOn: Binding(
                     get: { launchAtLogin },
                     set: { enabled in
@@ -103,7 +107,6 @@ private struct GeneralSettings: View {
                     Text(usage.map { L("%@ di CPU · %@", Format.percent($0.cpu), Format.bytes($0.memory)) } ?? "–")
                         .monospacedDigit()
                 }
-                LabeledContent(L("Parole accettate da sempre"), value: Format.integer(prefs.acceptedWordsTotal))
                 Button(L("Rivedi la guida iniziale")) { model.showOnboarding() }
             } footer: {
                 Footnote(L("A tastiera ferma l'app non fa nulla. Il modello lavora solo dopo una pausa mentre scrivi, e si ferma appena riprendi."))
@@ -111,6 +114,21 @@ private struct GeneralSettings: View {
             .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in usage = completer.ownUsage }
             .onAppear { usage = completer.ownUsage }
         }
+    }
+}
+
+extension SuggeritoreStatusLabels {
+    /// I testi della vista compatta nella lingua scelta per l'app.
+    static var localized: SuggeritoreStatusLabels {
+        var labels = SuggeritoreStatusLabels()
+        labels.engine = L("Motore")
+        labels.today = L("Parole oggi")
+        labels.total = L("Da sempre")
+        labels.session = L("Accettati")
+        labels.response = L("Risposta")
+        labels.milliseconds = L("%d ms")
+        labels.acceptedOfShown = L("%d su %d")
+        return labels
     }
 }
 
@@ -203,6 +221,8 @@ private struct SuggestionSettings: View {
                 Footnote(L("Appena finisci la parola: \"perche\" diventa \"perché\", \"un pò\" diventa \"un po'\", \"qual'è\" diventa \"qual è\". Solo parole che sbagliate non vogliono dire niente; le sigle in maiuscolo non si toccano."))
             }
 
+            AbbreviationSection(prefs: prefs)
+
             Section {
                 Toggle(L("Ricorda le frasi che accetto"), isOn: $prefs.phraseMemory)
                 HStack {
@@ -221,6 +241,79 @@ private struct SuggestionSettings: View {
                 Footnote(L("I seguiti che accetti vengono legati alle due parole che li precedono e riproposti subito, senza modello, dalla seconda volta. Restano in un file sul Mac, in Application Support."))
             }
         }
+    }
+}
+
+/// Le abbreviazioni: una riga per sigla, e in fondo quella per aggiungerne una.
+private struct AbbreviationSection: View {
+    @ObservedObject var prefs: Preferences
+    @State private var newTrigger = ""
+    @State private var newExpansion = ""
+
+    var body: some View {
+        Section {
+            ForEach($prefs.abbreviations) { $item in
+                HStack(spacing: 8) {
+                    TextField(text: $item.trigger) { Text(L("Sigla")) }
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 130)
+                    Image(systemName: "arrow.right").foregroundStyle(.tertiary).accessibilityHidden(true)
+                    TextField(text: $item.expansion) { Text(L("Testo intero")) }
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                    Button { removeAbbreviation(item.id) } label: { Image(systemName: "minus.circle") }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel(L("Togli l'abbreviazione %@", item.trigger))
+                }
+            }
+            HStack(spacing: 8) {
+                TextField(text: $newTrigger, prompt: Text(L("Per esempio: ;firma"))) { Text(L("Sigla")) }
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 130)
+                Image(systemName: "arrow.right").foregroundStyle(.tertiary).accessibilityHidden(true)
+                TextField(text: $newExpansion, prompt: Text(L("Per esempio: Cordiali saluti, Marta Rossi"))) { Text(L("Testo intero")) }
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit { addAbbreviation() }
+                Button(L("Aggiungi")) { addAbbreviation() }
+                    .disabled(newAbbreviation == nil)
+            }
+            if newAbbreviation == nil, let why = abbreviationProblem { Footnote(why) }
+        } header: {
+            Text(L("Abbreviazioni"))
+        } footer: {
+            Footnote(L("Scrivi la sigla e poi uno spazio o un segno: diventa il testo intero (\"cmq\" diventa \"comunque\"). Usa sigle che non scriveresti mai per conto tuo, o mettici davanti un punto e virgola (;firma): una parola vera verrebbe sostituita ogni volta. Maiuscole comprese, niente a capo."))
+        }
+    }
+
+    /// L'abbreviazione da aggiungere, se si può: sigla senza spazi e non già usata, testo non vuoto.
+    private var newAbbreviation: Abbreviation? {
+        let trigger = newTrigger.trimmingCharacters(in: .whitespaces)
+        let item = Abbreviation(trigger: trigger, expansion: Abbreviations.clean(newExpansion))
+        guard item.isUsable, !prefs.abbreviations.contains(where: { $0.trigger == trigger }) else { return nil }
+        return item
+    }
+
+    /// Perché non si può aggiungere, quando hai già scritto qualcosa.
+    private var abbreviationProblem: String? {
+        let trigger = newTrigger.trimmingCharacters(in: .whitespaces)
+        guard !trigger.isEmpty else { return nil }
+        if trigger.contains(where: { $0.isWhitespace }) { return L("La sigla non può contenere spazi.") }
+        if prefs.abbreviations.contains(where: { $0.trigger == trigger }) { return L("Questa sigla c'è già.") }
+        return nil
+    }
+
+    private func addAbbreviation() {
+        guard let item = newAbbreviation else { return }
+        prefs.abbreviations.append(item)
+        newTrigger = ""
+        newExpansion = ""
+    }
+
+    private func removeAbbreviation(_ id: UUID) {
+        prefs.abbreviations.removeAll { $0.id == id }
     }
 }
 
@@ -269,6 +362,8 @@ private struct AppsSettings: View {
             } footer: {
                 Footnote(L("Qui Suggeritore non legge e non scrive mai. Nei campi password e con l'input sicuro acceso non lo fa comunque, in nessuna app. Dal menu nella barra puoi spegnere l'app in cui ti trovi."))
             }
+
+            AppInstructionsSection(prefs: prefs, running: running)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in refreshRunning() }
     }
@@ -279,53 +374,83 @@ private struct AppsSettings: View {
             .sorted { ($0.localizedName ?? "") < ($1.localizedName ?? "") }
     }
 
-    private func name(for bundleID: String) -> String {
-        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
-            return FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
+    private func name(for bundleID: String) -> String { AppNames.name(for: bundleID) }
+}
+
+/// Le istruzioni per app: una frase per app, i profili consigliati da accettare con un pulsante.
+private struct AppInstructionsSection: View {
+    @ObservedObject var prefs: Preferences
+    var running: [NSRunningApplication]
+
+    var body: some View {
+        Section {
+            ForEach(sortedIDs, id: \.self) { bundleID in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(AppNames.name(for: bundleID))
+                        Text(bundleID).font(.caption).foregroundStyle(.tertiary).lineLimit(1)
+                        Spacer()
+                        Button { prefs.appInstructions[bundleID] = nil } label: { Image(systemName: "minus.circle") }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel(L("Togli le istruzioni per %@", AppNames.name(for: bundleID)))
+                    }
+                    TextField(text: binding(for: bundleID), prompt: Text(L("Per esempio: tono formale, frasi complete"))) {
+                        Text(AppNames.name(for: bundleID))
+                    }
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                }
+            }
+            HStack {
+                Menu(L("Aggiungi un'app aperta…")) {
+                    ForEach(addable, id: \.processIdentifier) { app in
+                        Button(app.localizedName ?? app.bundleIdentifier ?? "?") {
+                            if let id = app.bundleIdentifier { prefs.appInstructions[id] = "" }
+                        }
+                    }
+                }
+                if AppProfiles.canAddRecommended(to: prefs.appInstructions) {
+                    Button(L("Usa i profili consigliati")) {
+                        prefs.appInstructions = AppProfiles.merged(into: prefs.appInstructions)
+                    }
+                }
+            }
+        } header: {
+            Text(L("Istruzioni per app"))
+        } footer: {
+            Footnote(L("Una frase per il modello che vale solo in quell'app, dopo le tue istruzioni generali. I profili consigliati: Mail formale e cortese, Messaggi informale e breve, Note neutro e sintetico; non sono attivi finché non li accetti. Restano sul Mac."))
         }
-        return Exclusions.knownNames[bundleID] ?? bundleID
+    }
+
+    private var sortedIDs: [String] {
+        prefs.appInstructions.keys.sorted { AppNames.name(for: $0) < AppNames.name(for: $1) }
+    }
+
+    private var addable: [NSRunningApplication] {
+        var out: [NSRunningApplication] = []
+        for app in running {
+            guard let id = app.bundleIdentifier, prefs.appInstructions[id] == nil else { continue }
+            out.append(app)
+        }
+        return out
+    }
+
+    private func binding(for bundleID: String) -> Binding<String> {
+        Binding(get: { prefs.appInstructions[bundleID] ?? "" },
+                set: { prefs.appInstructions[bundleID] = $0 })
     }
 }
 
-// MARK: - Apple Intelligence
-
-private struct IntelligenceSettings: View {
-    @ObservedObject var prefs: Preferences
-    @ObservedObject var completer: Completer
-
-    var body: some View {
-        Form {
-            Section {
-                Picker(L("Motore"), selection: $prefs.engine) {
-                    ForEach(EngineChoice.allCases) { Text($0.title).tag($0) }
-                }
-                let reason = AppleEngine.unavailableReason
-                Label {
-                    Text(reason ?? L("Apple Intelligence è pronta: il modello gira sul Mac, niente rete.")).fixedSize(horizontal: false, vertical: true)
-                } icon: {
-                    Image(systemName: reason == nil ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                        .foregroundStyle(reason == nil ? Palette.calm : Color.orange)
-                }
-                .font(.callout)
-                if let error = completer.lastError {
-                    Footnote(L("Ultimo errore del modello: %@", error))
-                }
-            } header: {
-                Text(L("Motore"))
-            } footer: {
-                Footnote(L("Con \"Solo regole e memoria\" il modello non viene mai chiamato: restano le correzioni, le formule fisse e le frasi che hai accettato. Gemma, un secondo modello sul Mac, arriverà in una versione successiva."))
-            }
-
-            Section {
-                TextField(L("Per esempio: tono informale, frasi corte, niente anglicismi"), text: $prefs.instructions, axis: .vertical)
-                    .lineLimit(2...5)
-                    .textFieldStyle(.roundedBorder)
-            } header: {
-                Text(L("Le tue istruzioni"))
-            } footer: {
-                Footnote(L("Una frase che vale per tutti i suggerimenti. Il modello la legge insieme al testo: tienila corta e concreta. Non scriverci dati personali: restano sul Mac, ma non servono."))
-            }
+/// Il nome di un'app dal suo bundle id: quello del Finder se è installata, altrimenti uno che conosciamo.
+@MainActor
+enum AppNames {
+    static func name(for bundleID: String) -> String {
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+            return FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
         }
+        if let known = Exclusions.knownNames[bundleID] { return known }
+        if let profile = AppProfiles.recommended.first(where: { $0.bundleID == bundleID }) { return profile.name }
+        return bundleID
     }
 }
 

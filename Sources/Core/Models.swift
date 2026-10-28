@@ -32,6 +32,23 @@ struct TextContext: Equatable {
         }
         return out
     }
+
+    /// Lo stesso contesto con al massimo `max` caratteri prima del cursore, tagliato a confine di parola: i modelli
+    /// piccoli rispondono prima e meglio con meno testo.
+    func limited(to max: Int) -> TextContext {
+        guard max > 0, before.count > max else { return self }
+        var cut = String(before.suffix(max))
+        // Se il taglio cade a metà di una parola, via quel pezzo di parola.
+        let droppedLast = before.dropLast(max).last
+        let atBoundary = droppedLast.map { $0.isWhitespace || $0.isNewline } ?? true
+        if !atBoundary, let space = cut.firstIndex(where: { $0.isWhitespace || $0.isNewline }) {
+            let rest = cut[cut.index(after: space)...]
+            if !rest.isEmpty { cut = String(rest) }
+        }
+        var copy = self
+        copy.before = cut
+        return copy
+    }
 }
 
 /// Quanto lungo deve essere un suggerimento.
@@ -79,12 +96,14 @@ struct CompletionRequest {
     var language: String?
     /// Le istruzioni di chi usa l'app (tono, stile), vuote se non ne ha scritte.
     var instructions: String = ""
+    /// Le istruzioni per l'app in cui si scrive (Impostazioni › App), vuote se non ce ne sono.
+    var appInstructions: String = ""
     /// Gli appunti, se l'utente ha scelto di usarli come contesto.
     var clipboard: String?
 }
 
 enum SuggestionSource: String {
-    case memory, rules, apple
+    case memory, rules, apple, gemma
 }
 
 /// Un seguito proposto: il testo che manca dopo il cursore, spazi iniziali compresi.

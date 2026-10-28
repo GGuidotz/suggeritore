@@ -1,7 +1,9 @@
 // Il cuore dell'app: ascolta i tasti, aspetta che ti fermi, legge il campo, chiede un seguito (prima alla memoria e
-// alle regole, poi al modello) e lo mostra in grigio. Tab accetta una parola, Maiusc-Tab tutto, Esc scarta; se scrivi
-// proprio quello che era suggerito il suggerimento avanza, se scrivi altro sparisce. A fine parola applica le
-// correzioni italiane. Tutto sul main actor; il modello lavora in un Task che si annulla appena riprendi a scrivere.
+// alle regole, poi al modello) e lo mostra in grigio, già mentre il modello lo scrive. Tab accetta una parola,
+// Maiusc-Tab tutto, Esc scarta; se scrivi proprio quello che era suggerito il suggerimento avanza, se scrivi altro
+// sparisce. A fine parola espande le abbreviazioni e applica le correzioni italiane. Il motore lo sceglie
+// activeEngine(): Gemma se c'è (e intanto che si avvia Apple Intelligence), Apple Intelligence, o solo regole.
+// Tutto sul main actor; il modello lavora in un Task che si annulla appena riprendi a scrivere.
 
 import AppKit
 import Combine
@@ -27,15 +29,20 @@ final class Completer: ObservableObject {
 
     struct Stats {
         var shown = 0, acceptedWords = 0, acceptedAll = 0, dismissed = 0, memoryHits = 0, corrections = 0, modelFailures = 0
+        /// Suggerimenti di cui hai preso almeno una parola, e abbreviazioni espanse.
+        var acceptedSuggestions = 0, expansions = 0
     }
 
     @Published private(set) var status: Status = .off
     @Published private(set) var frontApp: (bundleID: String, name: String)?
     @Published private(set) var stats = Stats()
     @Published private(set) var lastError: String?
+    /// Quanto ha messo il modello a rispondere, in secondi, nelle ultime 20 richieste.
+    @Published private(set) var responseTimes: [Double] = []
 
     let prefs: Preferences
     let apple = AppleEngine()
+    let llama: LlamaServer
     let memory = PhraseMemory()
     let monitor = KeyMonitor()
     let overlay = GhostOverlay()
@@ -53,13 +60,24 @@ final class Completer: ObservableObject {
     /// Il testo prima del cursore quando il suggerimento è nato, e quanto ne è stato accettato: per la memoria.
     private var origin = ""
     private var acceptedSoFar = ""
+    /// Del suggerimento sullo schermo hai già preso qualcosa (per contare i suggerimenti accettati una volta sola).
+    private var acceptedCurrent = false
     private var debounceTask: Task<Void, Never>?
     private var requestTask: Task<Void, Never>?
     private var generation = 0
+    /// Il suggerimento sullo schermo è ancora a metà: il modello lo sta scrivendo.
+    private var streaming = false
+    /// Il suggerimento sullo schermo è rimasto a metà (l'hai preso prima che il modello finisse): non si impara.
+    private var cutShort = false
+    /// Dove sta il testo fantasma: mentre arrivano i pezzi il cursore non si muove, non serve rileggerlo.
+    private var ghostCaret: CGRect?
+    private var ghostFont: NSFont?
+    private var lastPartialAt = Date.distantPast
     private var bag = Set<AnyCancellable>()
 
     init(prefs: Preferences) {
         self.prefs = prefs
+        llama = LlamaServer(prefs: prefs)
     }
 
     var ownUsage: ProcessUsage? { usageReader.read() }
@@ -76,10 +94,114 @@ final class Completer: ObservableObject {
         prefs.objectWillChange.receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.refreshStatus() }
             .store(in: &bag)
+        // Chi guarda il Completer (menu, impostazioni) vede anche lo stato del server di Gemma.
+        llama.objectWillChange.receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &bag)
+        // Un altro motore scelto: il server di Gemma non serve più.
+        prefs.$engine.dropFirst().removeDuplicates().receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.engineChoiceChanged() }
+            .store(in: &bag)
         startMonitorIfPossible()
         appChanged()
-        if prefs.engine == .apple { apple.prewarm() }
+        if prefs.useOllama { llama.refreshOllama() }
+        if preferredKind == .apple { apple.prewarm() }
         diag(.app, "completer started, tap \(monitor.isRunning ? "on" : "off")")
+    }
+
+    private func engineChoiceChanged() {
+        if preferredKind != .gemma, llama.state != .stopped { llama.stop() }
+        if preferredKind == .apple { apple.prewarm() }
+    }
+
+    // MARK: - Motore
+
+    /// Il motore che la preferenza chiede adesso, senza avviare niente. nil: solo regole e memoria.
+    var preferredKind: EngineKind? {
+        switch prefs.engine {
+        case .rulesOnly: return nil
+        case .apple: return .apple
+        case .gemma: return .gemma
+        case .auto:
+            if llama.isAvailable { return .gemma }
+            return apple.unavailableReason == nil ? .apple : nil
+        }
+    }
+
+    /// Il motore da usare per una richiesta. Con Gemma conta come uso del server (e lo avvia se è fermo); finché
+    /// non è pronto risponde Apple Intelligence, se c'è, senza aspettare. nil: solo regole e memoria.
+    func activeEngine() -> (any CompletionEngine)? {
+        guard let kind = preferredKind else { return nil }
+        if kind == .gemma {
+            llama.noteUse()
+            if let engine = llama.engine { return engine }
+        }
+        if apple.unavailableReason == nil { return apple }
+        return nil
+    }
+
+    /// Il nome del motore che risponderebbe adesso (senza avviare niente), nil se nessuno.
+    var currentEngineName: String? {
+        guard let kind = preferredKind else { return nil }
+        if kind == .gemma {
+            if let engine = llama.engine { return engine.displayName }
+            if llama.state == .stopped { return llama.modelTitle }   // si avvia alla prima richiesta
+        }
+        return apple.unavailableReason == nil ? apple.displayName : nil
+    }
+
+    /// Una frase su Gemma quando non è ancora pronto, per il menu; nil se non c'è niente da dire.
+    var engineNotice: String? {
+        guard preferredKind == .gemma else { return nil }
+        switch llama.state {
+        case .starting: return L("Gemma: si avvia…")
+        case .downloading: return L("Gemma: sto scaricando il modello…")
+        case .failed: return L("Gemma non è disponibile: vedi Impostazioni › Motori.")
+        case .stopped, .ready: return nil
+        }
+    }
+
+    /// La riga di stato del menu: "Pronto · Gemma 3 1B".
+    var statusLine: String {
+        switch status {
+        case .ready, .thinking, .suggesting:
+            return status.title + " · " + (currentEngineName ?? L("Solo regole e memoria"))
+        default:
+            return status.title
+        }
+    }
+
+    /// Il tempo medio di risposta del modello nelle ultime 20 richieste, in millisecondi.
+    var averageResponseMs: Int? {
+        guard !responseTimes.isEmpty else { return nil }
+        let total = responseTimes.reduce(0, +)
+        return Int((total / Double(responseTimes.count) * 1000).rounded())
+    }
+
+    private func recordResponseTime(_ seconds: TimeInterval) {
+        responseTimes.append(seconds)
+        if responseTimes.count > 20 { responseTimes.removeFirst(responseTimes.count - 20) }
+    }
+
+    /// I dati per la vista compatta (Sources/Island): stato, motore, conteggi.
+    var statusInfo: SuggeritoreStatusInfo {
+        var tone: SuggeritoreStatusInfo.Tone
+        switch status {
+        case .ready: tone = .ok
+        case .thinking, .suggesting: tone = .busy
+        case .off, .excluded: tone = .off
+        case .noPermission, .secureInput: tone = .warning
+        }
+        if tone == .ok, llama.state.isBusy, preferredKind == .gemma { tone = .busy }
+        return SuggeritoreStatusInfo(statusText: status.title,
+                                     tone: tone,
+                                     engineName: currentEngineName ?? L("Solo regole e memoria"),
+                                     engineDetail: engineNotice,
+                                     wordsToday: prefs.acceptedToday,
+                                     wordsTotal: prefs.acceptedWordsTotal,
+                                     shownThisSession: stats.shown,
+                                     acceptedThisSession: stats.acceptedSuggestions,
+                                     averageResponseMs: averageResponseMs)
     }
 
     /// Prova ad accendere il tap sulla tastiera: serve il permesso Accessibilità.
@@ -132,6 +254,8 @@ final class Completer: ObservableObject {
                     dismiss(reason: nil)
                     return .pass
                 }
+                // Prendi quello che c'è: se il modello stava ancora scrivendo, si ferma qui.
+                stopStreaming()
                 if accept { acceptWord() } else { acceptAll() }
                 return .swallow
             }
@@ -142,6 +266,7 @@ final class Completer: ObservableObject {
             }
             if s.isPrintable, !s.characters.isEmpty, suggestion.text.hasPrefix(s.characters) {
                 // Stai scrivendo proprio quello che era suggerito: il suggerimento avanza.
+                stopStreaming()
                 acceptedSoFar += s.characters
                 let rest = String(suggestion.text.dropFirst(s.characters.count))
                 if rest.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -156,7 +281,8 @@ final class Completer: ObservableObject {
         }
         guard !s.hasCommandOrControl else { return .pass }
         if s.isPrintable {
-            if prefs.italianCorrections, Self.isBoundary(s.characters) { scheduleCorrection(boundary: s.characters) }
+            let wantsFix = prefs.italianCorrections || !prefs.abbreviations.isEmpty
+            if wantsFix, Self.isBoundary(s.characters) { scheduleBoundaryFix(boundary: s.characters) }
             scheduleSuggestion()
         } else if s.isBackspace {
             scheduleSuggestion()
@@ -209,31 +335,105 @@ final class Completer: ObservableObject {
             show(instant, field: field, context: context)
             return
         }
-        guard prefs.engine == .apple else { return }
-        guard apple.unavailableReason == nil else { refreshStatus(); return }
-        let request = CompletionRequest(context: context, length: prefs.length, language: LanguageGuess.code(for: before),
-                                        instructions: prefs.instructions, clipboard: clipboardIfAllowed())
-        let engine = apple
+        guard let engine = activeEngine() else { refreshStatus(); return }
+        let request = CompletionRequest(context: context.limited(to: engine.contextLimit), length: prefs.length,
+                                        language: LanguageGuess.code(for: before), instructions: prefs.instructions,
+                                        appInstructions: prefs.instruction(forApp: field.bundleID),
+                                        clipboard: clipboardIfAllowed())
+        let source: SuggestionSource = engine.kind == .gemma ? .gemma : .apple
+        let started = Date()
+        // I pezzi arrivano da un thread qualunque: si torna sul main actor, in ordine.
+        let partial: @Sendable (String) -> Void = { [weak self] text in
+            DispatchQueue.main.async { [weak self] in
+                MainActor.assumeIsolated { self?.showPartial(text, request: request, generation: gen, source: source) }
+            }
+        }
         requestTask = Task { [weak self] in
             let result: Result<String, Error>
-            do { result = .success(try await engine.complete(request)) } catch { result = .failure(error) }
+            do { result = .success(try await engine.complete(request, partial: partial)) } catch { result = .failure(error) }
             guard !Task.isCancelled, let self, self.generation == gen else { return }
             self.requestTask = nil
             switch result {
             case .success(let raw):
-                guard let cleaned = Prompting.cleanCompletion(raw, for: request) else { self.refreshStatus(); return }
-                // Il cursore è ancora lì?
-                guard let now = FocusReader.focusedField(), CFEqual(now.element, field.element), now.caret == field.caret
-                else { self.refreshStatus(); return }
-                self.show(Suggestion(text: cleaned, source: .apple), field: now, context: context)
+                self.recordResponseTime(Date().timeIntervalSince(started))
+                self.finishStream(raw, request: request, field: field, context: context, source: source)
             case .failure(let error):
                 self.stats.modelFailures += 1
                 self.lastError = error.localizedDescription
-                diag(.engine, "model failed: \(error.localizedDescription)")
+                diag(.engine, "\(engine.kind.rawValue) failed: \(error.localizedDescription)")
+                self.clearPartial()
                 self.refreshStatus()
             }
         }
         refreshStatus()
+    }
+
+    /// Un pezzo del seguito mentre il modello scrive: il primo appare (se il cursore è ancora lì), i successivi
+    /// aggiornano il testo fantasma nello stesso punto. Niente taglio a fine frase finché non è finito.
+    private func showPartial(_ raw: String, request: CompletionRequest, generation gen: Int, source: SuggestionSource) {
+        guard generation == gen, requestTask != nil, let field, let context else { return }
+        let now = Date()
+        guard now.timeIntervalSince(lastPartialAt) >= 0.04 else { return }   // al più un aggiornamento ogni 40 ms
+        guard let cleaned = Prompting.cleanCompletion(raw, for: request, final: false) else { return }
+        if streaming, let current = suggestion {
+            guard cleaned != current.text else { return }
+            lastPartialAt = now
+            suggestion = Suggestion(text: cleaned, source: source)
+            overlay.show(cleaned, font: ghostFont, caret: ghostCaret, fieldFrame: field.frame)
+            return
+        }
+        guard suggestion == nil else { return }
+        // Il primo pezzo: il cursore è ancora lì?
+        guard let current = FocusReader.focusedField(), CFEqual(current.element, field.element), current.caret == field.caret
+        else { return }
+        lastPartialAt = now
+        show(Suggestion(text: cleaned, source: source), field: current, context: context)
+        streaming = true
+    }
+
+    /// La risposta intera: pulizia completa. Se il seguito era già sullo schermo si aggiorna lì, altrimenti appare ora.
+    private func finishStream(_ raw: String, request: CompletionRequest, field: FocusedField, context: TextContext,
+                              source: SuggestionSource) {
+        let wasStreaming = streaming && suggestion != nil
+        streaming = false
+        guard let cleaned = Prompting.cleanCompletion(raw, for: request) else {
+            if wasStreaming {
+                suggestion = nil
+                overlay.hide()
+            }
+            refreshStatus()
+            return
+        }
+        if wasStreaming {
+            if suggestion?.text != cleaned {
+                suggestion = Suggestion(text: cleaned, source: source)
+                overlay.show(cleaned, font: ghostFont, caret: ghostCaret, fieldFrame: self.field?.frame)
+            }
+            refreshStatus()
+            return
+        }
+        // Il cursore è ancora lì?
+        guard let now = FocusReader.focusedField(), CFEqual(now.element, field.element), now.caret == field.caret
+        else { refreshStatus(); return }
+        show(Suggestion(text: cleaned, source: source), field: now, context: context)
+    }
+
+    /// Il modello non ha finito ma è andato storto: via il pezzo mostrato.
+    private func clearPartial() {
+        guard streaming else { return }
+        streaming = false
+        suggestion = nil
+        overlay.hide()
+    }
+
+    /// Hai preso (o stai scrivendo) il suggerimento a metà: il modello smette, i pezzi in arrivo non contano più.
+    private func stopStreaming() {
+        guard requestTask != nil || streaming else { return }
+        if streaming { cutShort = true }
+        requestTask?.cancel()
+        requestTask = nil
+        streaming = false
+        generation += 1
     }
 
     private func clipboardIfAllowed() -> String? {
@@ -248,9 +448,14 @@ final class Completer: ObservableObject {
         self.field = field
         origin = context.before
         acceptedSoFar = ""
+        acceptedCurrent = false
+        streaming = false
+        cutShort = false
         stats.shown += 1
         let caret = FocusReader.caretBounds(field, afterNewline: context.before.last?.isNewline == true)
-        overlay.show(s.text, font: caret == nil ? nil : FocusReader.font(field), caret: caret, fieldFrame: field.frame)
+        ghostCaret = caret
+        ghostFont = caret == nil ? nil : FocusReader.font(field)
+        overlay.show(s.text, font: ghostFont, caret: caret, fieldFrame: field.frame)
         refreshStatus()
     }
 
@@ -274,7 +479,8 @@ final class Completer: ObservableObject {
         TextInserter.type(first)
         acceptedSoFar += first
         stats.acceptedWords += 1
-        prefs.acceptedWordsTotal += 1
+        noteAccepted()
+        prefs.addAcceptedWords(1)
         if rest.trimmingCharacters(in: .whitespaces).isEmpty {
             finishSuggestion(learn: true)
         } else {
@@ -288,17 +494,25 @@ final class Completer: ObservableObject {
         TextInserter.type(s.text)
         acceptedSoFar += s.text
         stats.acceptedAll += 1
-        prefs.acceptedWordsTotal += s.words.count
+        noteAccepted()
+        prefs.addAcceptedWords(s.words.count)
         finishSuggestion(learn: true)
     }
 
+    private func noteAccepted() {
+        guard !acceptedCurrent else { return }
+        acceptedCurrent = true
+        stats.acceptedSuggestions += 1
+    }
+
     private func finishSuggestion(learn: Bool) {
-        if learn, prefs.phraseMemory, suggestion?.source != .memory,
+        if learn, !cutShort, prefs.phraseMemory, suggestion?.source != .memory,
            TextTokens.wordCount(acceptedSoFar) >= 1 {
             memory.learn(before: origin, accepted: acceptedSoFar)
         }
         suggestion = nil
         acceptedSoFar = ""
+        streaming = false
         overlay.hide()
         generation += 1
         refreshStatus()
@@ -308,6 +522,7 @@ final class Completer: ObservableObject {
         debounceTask?.cancel()
         requestTask?.cancel()
         requestTask = nil
+        streaming = false
         suggestion = nil
         acceptedSoFar = ""
         overlay.hide()
@@ -315,35 +530,51 @@ final class Completer: ObservableObject {
         refreshStatus()
     }
 
-    // MARK: - Correzioni
+    // MARK: - Abbreviazioni e correzioni
 
-    private func scheduleCorrection(boundary: String) {
+    private func scheduleBoundaryFix(boundary: String) {
         Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(60))
-            self?.applyCorrection(boundary: boundary)
+            self?.applyBoundaryFix(boundary: boundary)
         }
     }
 
-    private func applyCorrection(boundary: String) {
-        guard prefs.italianCorrections, let field = FocusReader.focusedField(), !field.isSecure,
+    /// La parola appena finita: prima le abbreviazioni ("cmq" → "comunque"), poi le correzioni italiane.
+    private func applyBoundaryFix(boundary: String) {
+        guard let field = FocusReader.focusedField(), !field.isSecure,
               !prefs.isExcluded(field.bundleID), field.selection.length == 0 else { return }
         if ignoreOwnProcess, field.pid == getpid() { return }
         guard let before = FocusReader.text(before: field, max: 200), before.hasSuffix(boundary) else { return }
-        guard let last = ItalianRules.lastWord(before: before) else { return }
+        if let found = Abbreviations.match(before: before, in: prefs.abbreviations) {
+            if replaceWord(found.trigger, with: found.expansion, boundary: boundary, field: field, before: before) {
+                stats.expansions += 1
+            }
+            return
+        }
+        guard prefs.italianCorrections, let last = ItalianRules.lastWord(before: before) else { return }
         let word = last.word
         var fixed = ItalianRules.correction(for: word)
         if fixed == nil, prefs.capitalizeSentences { fixed = ItalianRules.capitalized(word, before: last.prefix) }
         guard let fixed, fixed != word else { return }
-        let boundaryUnits = boundary.utf16.count
-        if FocusReader.replace(field, length: word.utf16.count, endingAt: field.caret - boundaryUnits, with: fixed, keepAfter: boundaryUnits) {
+        if replaceWord(word, with: fixed, boundary: boundary, field: field, before: before) {
             stats.corrections += 1
-            return
         }
-        // Ripiego: cancella e riscrivi, ma solo se nel frattempo non è cambiato niente.
-        guard let check = FocusReader.text(before: field, max: 200), check == before else { return }
+    }
+
+    /// Sostituisce `word`, che finisce subito prima del carattere di confine appena scritto, con `replacement`: via
+    /// Accessibilità se l'app lo permette, altrimenti cancellando e riscrivendo, ma solo se nel frattempo non è
+    /// cambiato niente. Vero se è andata.
+    private func replaceWord(_ word: String, with replacement: String, boundary: String, field: FocusedField,
+                             before: String) -> Bool {
+        let boundaryUnits = boundary.utf16.count
+        if FocusReader.replace(field, length: word.utf16.count, endingAt: field.caret - boundaryUnits, with: replacement,
+                               keepAfter: boundaryUnits) {
+            return true
+        }
+        guard let check = FocusReader.text(before: field, max: 200), check == before else { return false }
         TextInserter.deleteBackward(word.count + boundary.count)
-        TextInserter.type(fixed + boundary)
-        stats.corrections += 1
+        TextInserter.type(replacement + boundary)
+        return true
     }
 
     // MARK: - Controlli dall'esterno

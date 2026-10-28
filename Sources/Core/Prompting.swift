@@ -1,6 +1,8 @@
 // Cosa si dice al modello e come si pulisce quello che risponde. Le istruzioni sono in inglese perché i modelli
 // piccoli le seguono meglio; il testo da continuare resta nella sua lingua e il modello deve rispondere in quella.
-// Il modello di Apple ha una finestra piccola (circa 4.000 token): il contesto si tiene corto (TextContext.maxBefore).
+// Istruzioni corte: ogni riga in più costa tempo al modello di Apple, che ha anche una finestra piccola (circa 4.000
+// token); il contesto lo taglia ogni motore (CompletionEngine.contextLimit). Mentre il modello scrive, il seguito a
+// metà si pulisce senza tagliarlo a fine frase (cleanCompletion con final: false).
 
 import Foundation
 
@@ -9,25 +11,26 @@ enum Prompting {
 
     static func completionInstructions(_ r: CompletionRequest) -> String {
         var lines = [
-            "You are an autocomplete engine inside a text field. The user is typing; you write ONLY the text that should come next, exactly where the cursor is.",
-            "Rules:",
-            "- Output only the continuation. No quotes, no explanations, no labels, no markdown, no emoji.",
-            "- Never repeat text that is already before the cursor.",
-            "- Write in the same language as the text (\(languageName(r.language))). Match its tone, register and formatting.",
-            "- Keep it \(lengthHint(r.length)). Stop at the end of the sentence; do not start a new paragraph.",
-            "- If the text before the cursor ends in the middle of a word, first complete that word, then continue.",
-            "- If it ends with a space, start directly with the next word. If it ends with a letter or punctuation and the word is complete, start with a space.",
-            "- If nothing sensible can follow, output an empty string.",
+            "You are an autocomplete engine. Write ONLY the text that comes next at the cursor.",
+            "- No quotes, labels, explanations, markdown or emoji. Never repeat the text before the cursor.",
+            "- Same language as the text (\(languageName(r.language))), same tone.",
+            "- Length: \(lengthHint(r.length)). Stop at the end of the sentence.",
+            "- Mid-word: finish the word, then go on. After a space: start with the next word. After a complete word or punctuation: start with a space.",
+            "- If nothing fits, output nothing.",
         ]
         if !r.context.after.isEmpty {
-            lines.append("- There is text after the cursor on the same line; your continuation must join it smoothly and must not repeat it.")
+            lines.append("- Text follows the cursor on the same line: join it smoothly, do not repeat it.")
         }
         if r.clipboard != nil {
-            lines.append("- The clipboard content is given as context; use it only if it clearly helps (names, numbers, addresses).")
+            lines.append("- Use the clipboard only if it clearly helps (names, numbers, addresses).")
         }
         let own = r.instructions.trimmingCharacters(in: .whitespacesAndNewlines)
         if !own.isEmpty {
             lines.append("User preferences: \(own)")
+        }
+        let forApp = r.appInstructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !forApp.isEmpty {
+            lines.append("Preferences for this app: \(forApp)")
         }
         return lines.joined(separator: "\n")
     }
@@ -51,20 +54,36 @@ enum Prompting {
         return out
     }
 
+    private static let labels = ["Continuation:", "Completion:", "Output:", "Text:"]
+
     /// Dalla risposta grezza al seguito da mostrare: via virgolette, ripetizioni, emoji e a capo; taglio a fine frase e
     /// al numero di parole scelto; spazio iniziale giusto. nil se non resta niente di utile.
-    static func cleanCompletion(_ raw: String, for r: CompletionRequest) -> String? {
+    /// Con `final` falso il testo è ancora a metà (il modello sta scrivendo): niente taglio a fine frase, e un'etichetta
+    /// o una virgoletta aperta non ancora chiusa non si mostrano.
+    static func cleanCompletion(_ raw: String, for r: CompletionRequest, final: Bool = true) -> String? {
         var text = raw
         text = text.replacingOccurrences(of: "```", with: "")
         text = TextTokens.removingEmoji(text)
         // Il modello a volte etichetta la risposta.
-        for label in ["Continuation:", "Completion:", "Output:", "Text:"] where text.trimmingCharacters(in: .whitespaces).hasPrefix(label) {
+        for label in labels where text.trimmingCharacters(in: .whitespaces).hasPrefix(label) {
             text = String(text.trimmingCharacters(in: .whitespaces).dropFirst(label.count))
+        }
+        if !final {
+            // Un'etichetta che sta ancora arrivando ("Contin…"): meglio aspettare il pezzo dopo.
+            let head = text.trimmingCharacters(in: .whitespaces)
+            if !head.isEmpty, labels.contains(where: { $0.hasPrefix(head) }) { return nil }
         }
         // Virgolette intorno a tutto.
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         for (open, close) in [("«", "»"), ("\"", "\""), ("“", "”"), ("'", "'")] where trimmed.hasPrefix(open) && trimmed.hasSuffix(close) && trimmed.count > 2 {
             text = String(trimmed.dropFirst().dropLast())
+        }
+        if !final {
+            // A metà la virgoletta di chiusura non è ancora arrivata: via quella d'apertura.
+            let head = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let first = head.first, first == "«" || first == "\"" || first == "“" {
+                text = String(head.dropFirst())
+            }
         }
         // Un solo rigo: gli a capo diventano spazi, e si prende al massimo il numero di frasi scelto.
         text = text.replacingOccurrences(of: "\r", with: "")
@@ -89,12 +108,12 @@ enum Prompting {
         // Mai due spazi tra prima e dopo.
         if before.last == " ", text.first == " " { text = String(text.dropFirst()) }
 
-        // Taglio a fine frase e a numero di parole.
-        text = cutToSentences(text, max: r.length.maxSentences)
+        // Taglio a fine frase (solo a risposta finita) e a numero di parole.
+        if final { text = cutToSentences(text, max: r.length.maxSentences) }
         text = cutToWords(text, max: r.length.maxWords)
         text = text.replacingOccurrences(of: "\\s+$", with: "", options: .regularExpression)
         // Il seguito deve legarsi bene a ciò che viene dopo sulla riga.
-        if let next = r.context.after.first, !next.isWhitespace, !next.isPunctuation, text.last?.isLetter == true {
+        if final, let next = r.context.after.first, !next.isWhitespace, !next.isPunctuation, text.last?.isLetter == true {
             text += " "
         }
         let meaningful = text.trimmingCharacters(in: .whitespacesAndNewlines)

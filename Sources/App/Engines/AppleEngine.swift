@@ -1,6 +1,7 @@
 // Apple Intelligence (FoundationModels): il modello sul Mac. Niente rete, niente dati che escono. Una sessione nuova
 // per ogni richiesta (le richieste sono indipendenti e la finestra del modello è piccola), istruzioni e prompt da
-// Sources/Core/Prompting.swift. Senza il framework o senza Apple Intelligence attiva il motore dice perché non c'è.
+// Sources/Core/Prompting.swift. Contesto corto (700 caratteri) e scelta "greedy": risponde prima e divaga meno. Il
+// seguito arriva a pezzi (streamResponse). Senza il framework o senza Apple Intelligence attiva dice perché non c'è.
 
 import Foundation
 #if canImport(FoundationModels)
@@ -9,6 +10,9 @@ import FoundationModels
 
 final class AppleEngine: CompletionEngine, @unchecked Sendable {
     let kind = EngineKind.apple
+    let displayName = "Apple Intelligence"
+    /// Il modello di Apple è lento con i contesti lunghi: gli ultimi 700 caratteri bastano per il seguito.
+    let contextLimit = 700
 
     /// nil se Apple Intelligence si può usare adesso, altrimenti perché no.
     var unavailableReason: String? { Self.unavailableReason }
@@ -43,14 +47,26 @@ final class AppleEngine: CompletionEngine, @unchecked Sendable {
         #endif
     }
 
-    func complete(_ request: CompletionRequest) async throws -> String {
+    func complete(_ request: CompletionRequest, partial: @escaping @Sendable (String) -> Void) async throws -> String {
         #if canImport(FoundationModels)
         if #available(macOS 26.0, *) {
             guard Self.unavailableReason == nil else { throw EngineError(Self.unavailableReason ?? "") }
             let session = LanguageModelSession(instructions: Prompting.completionInstructions(request))
-            let options = GenerationOptions(temperature: 0.4, maximumResponseTokens: request.length.maxTokens)
-            let response = try await session.respond(to: Prompting.completionPrompt(request), options: options)
-            return response.content
+            // Greedy: sempre la parola più probabile, niente temperatura (da verificare sul Mac: l'inizializzatore
+            // GenerationOptions(sampling:temperature:maximumResponseTokens:) è quello dell'SDK di macOS 26).
+            let options = GenerationOptions(sampling: .greedy, temperature: nil,
+                                            maximumResponseTokens: request.length.maxTokens)
+            // Da verificare sul Mac: in macOS 26 ogni elemento dello stream è uno snapshot con `.content` (per le
+            // risposte testuali una String con tutto il testo scritto finora).
+            let stream = session.streamResponse(to: Prompting.completionPrompt(request), options: options)
+            var text = ""
+            for try await snapshot in stream {
+                text = snapshot.content
+                partial(text)
+                // Un a capo dopo il primo pezzo vuol dire che il seguito è finito: inutile aspettare il resto.
+                if Self.endsLine(text) { break }
+            }
+            return text
         }
         #endif
         throw EngineError(Self.unavailableReason ?? L("Apple Intelligence non è disponibile adesso."))
@@ -67,5 +83,10 @@ final class AppleEngine: CompletionEngine, @unchecked Sendable {
         }
         #endif
         throw EngineError(Self.unavailableReason ?? L("Apple Intelligence non è disponibile adesso."))
+    }
+
+    /// Vero se il testo, tolti gli spazi iniziali, contiene già un a capo.
+    static func endsLine(_ text: String) -> Bool {
+        text.drop(while: { $0.isWhitespace || $0.isNewline }).contains(where: { $0.isNewline })
     }
 }

@@ -1,6 +1,6 @@
-// Diagnostica: un registro breve di ciò che succede (permessi, motore, aggiornamenti) e un report in testo semplice
-// da allegare a una segnalazione. Solo in memoria, mai dati personali: niente testo scritto, niente nomi di finestre
-// o di file, niente app aperte. Solo stati e conteggi.
+// Diagnostica: un registro breve di ciò che succede (permessi, motori, server di Gemma, aggiornamenti) e un report in
+// testo semplice da allegare a una segnalazione. Solo in memoria, mai dati personali: niente testo scritto, niente
+// nomi di finestre o di file, niente percorsi, niente app aperte. Solo stati e conteggi.
 
 import AppKit
 import Foundation
@@ -105,10 +105,33 @@ enum DiagnosticsReport {
         row("Secure input active now", yesNo(KeyMonitor.secureInputActive))
 
         section("Engine")
+        let llama = completer.llama
         row("Choice", prefs.engine.rawValue)
+        row("Active engine", completer.preferredKind?.rawValue ?? "rules only")
+        row("Answering now", completer.currentEngineName ?? "rules only")
         row("Apple Intelligence", AppleEngine.unavailableReason ?? "available")
+        let customPath = prefs.llamaServerPath == nil ? "" : " (custom path set)"
+        row("llama.cpp installed", yesNo(llama.isInstalled) + customPath)
+        var server = llama.state.diagnostic
+        if let backend = llama.backend { server += " via " + backend.rawValue }
+        row("Gemma server", server)
+        let customModels = prefs.customModels.isEmpty ? "" : ", \(prefs.customModels.count) custom"
+        row("Gemma model", prefs.selectedModelID + customModels)
+        if let models = llama.ollamaModels {
+            row("Ollama", "running, \(models.count) models")
+        } else {
+            row("Ollama", "not running (or not checked)")
+        }
+        row("Use Ollama", yesNo(prefs.useOllama))
+        row("Idle shutdown", "\(Int(prefs.llamaIdleMinutes)) min")
+        if let average = completer.averageResponseMs {
+            row("Average response", "\(average) ms (last \(completer.responseTimes.count))")
+        } else {
+            row("Average response", "none yet")
+        }
         row("Status", "\(completer.status)")
         if let error = completer.lastError { row("Last model error", error) }
+        for line in llama.recentLog { row("Server log", line) }
 
         section("Preferences")
         row("Enabled", yesNo(prefs.enabled))
@@ -121,6 +144,8 @@ enum DiagnosticsReport {
         row("Clipboard as context", yesNo(prefs.clipboardContext))
         row("Excluded apps", "\(prefs.excludedApps.count)")
         row("Custom instructions", prefs.instructions.isEmpty ? "none" : "\(prefs.instructions.count) characters")
+        row("App instructions", "\(prefs.appInstructions.count) apps")
+        row("Abbreviations", "\(prefs.abbreviations.count)")
         row("Automatic update check", yesNo(prefs.autoCheckUpdates))
 
         section("Counters (this session)")
@@ -131,6 +156,9 @@ enum DiagnosticsReport {
         row("Dismissed", "\(s.dismissed)")
         row("From memory or rules", "\(s.memoryHits)")
         row("Corrections", "\(s.corrections)")
+        row("Abbreviations expanded", "\(s.expansions)")
+        row("Suggestions accepted", "\(s.acceptedSuggestions)")
+        row("Words accepted today", "\(prefs.acceptedToday)")
         row("Model failures", "\(s.modelFailures)")
         if let own = completer.ownUsage { row("This app now", "\(Format.percent(own.cpu)) CPU, \(Format.bytes(own.memory))") }
 

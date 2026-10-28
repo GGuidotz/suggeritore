@@ -2,7 +2,8 @@
 // GGuidotz/suggeritore. Se c'è una versione più nuova mostra le sue novità e il comando per aggiornare:
 //   installato con Homebrew: brew update && brew upgrade --cask suggeritore
 //   compilato dai sorgenti: cd '<cartella del clone>' && git pull && ./build.sh --install
-// "Aggiorna nel Terminale" apre il Terminale ed esegue il comando (la prima volta macOS chiede il permesso Automazione).
+// "Aggiorna nel Terminale" apre il Terminale ed esegue il comando (Terminal.run; la prima volta macOS chiede il
+// permesso Automazione).
 // Stesso schema di Nod.
 
 import AppKit
@@ -111,19 +112,9 @@ final class Updater: ObservableObject {
         diag(.update, "update command copied")
     }
 
-    /// Apre il Terminale ed esegue il comando.
+    /// Apre il Terminale ed esegue il comando (Sources/App/Terminal.swift).
     func runInTerminal() {
-        let escaped = command.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
-        let source = "tell application \"Terminal\"\nactivate\ndo script \"\(escaped)\"\nend tell"
-        var error: NSDictionary?
-        NSAppleScript(source: source)?.executeAndReturnError(&error)
-        if let error {
-            terminalError = L("Il Terminale non ha eseguito il comando: copialo e incollalo tu. (%@)",
-                              (error[NSAppleScript.errorMessage] as? String) ?? "?")
-            diag(.update, "run in Terminal failed: \(error)")
-        } else {
-            terminalError = nil
-            diag(.update, "update command sent to Terminal")
-        }
+        terminalError = Terminal.run(command: command)
+        diag(.update, terminalError == nil ? "update command sent to Terminal" : "update command not sent")
     }
 }

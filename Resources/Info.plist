@@ -35,6 +35,11 @@
 	<string>© 2026 gguidotz · github.com/GGuidotz/suggeritore</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Serve solo per eseguire il comando di aggiornamento nel Terminale, quando lo chiedi tu.</string>
 </dict>

@@ -1,6 +1,7 @@
 // Riscrivi la selezione: scorciatoia (predefinita ⌃⌥R) sul testo selezionato in qualunque app. Un pannello piccolo
 // vicino alla selezione, che non attiva Suggeritore: più breve, più formale, più informale, correggi, o un'istruzione
 // scritta da te; anteprima; "Sostituisci" scrive al posto della selezione (via Accessibilità, altrimenti incollando).
+// Il modello è quello dei suggerimenti (Gemma o Apple Intelligence, Completer.activeEngine).
 
 import AppKit
 import SwiftUI
@@ -16,15 +17,14 @@ final class RewriteController: NSObject, ObservableObject, NSWindowDelegate {
     @Published var instruction = ""
 
     let prefs: Preferences
-    private let engine: AppleEngine
+    /// Il motore lo sceglie il Completer (activeEngine): lo stesso dei suggerimenti.
     private let completer: Completer
     private var field: FocusedField?
     private var panel: NSPanel?
     private var task: Task<Void, Never>?
 
-    init(prefs: Preferences, engine: AppleEngine, completer: Completer) {
+    init(prefs: Preferences, completer: Completer) {
         self.prefs = prefs
-        self.engine = engine
         self.completer = completer
         super.init()
     }
@@ -51,12 +51,15 @@ final class RewriteController: NSObject, ObservableObject, NSWindowDelegate {
 
     private func run(instruction: String) {
         guard !original.isEmpty else { return }
+        guard let engine = completer.activeEngine() else {
+            state = .failed(L("Nessun modello disponibile: scegli un motore in Impostazioni › Motori."))
+            return
+        }
         if let why = engine.unavailableReason { state = .failed(why); return }
         task?.cancel()
         state = .working
         let text = original
         let language = LanguageGuess.code(for: text)
-        let engine = engine
         task = Task { [weak self] in
             let result: Result<String, Error>
             do { result = .success(try await engine.rewrite(text, instruction: instruction, language: language)) } catch { result = .failure(error) }

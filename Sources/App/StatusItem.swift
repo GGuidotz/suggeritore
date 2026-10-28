@@ -1,7 +1,8 @@
 // La voce nella barra dei menu: un'icona piccola disegnata da noi (NSStatusItem, immagine modello: segue chiaro e
-// scuro), con tre stati: pronta, in pausa (più chiara), sta pensando (un puntino). Clic: un menu breve con lo stato,
-// pausa, "in questa app", riscrivi, impostazioni, novità, guida, feedback, esci. Le HIG chiedono un menu per le voci
-// semplici, e questa lo è: non c'è un pannello.
+// scuro), con tre stati: pronta, in pausa (più chiara), sta pensando (un puntino). Clic: un menu breve con lo stato e
+// il motore ("Pronto · Gemma 3 1B", più una riga se Gemma si avvia o scarica il modello), pausa, "in questa app",
+// riscrivi, impostazioni, novità, guida, feedback, esci. Le HIG chiedono un menu per le voci semplici, e questa lo
+// è: non c'è un pannello.
 
 import AppKit
 import Combine
@@ -46,9 +47,14 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.removeAllItems()
         let completer = model.completer, prefs = model.prefs
 
-        let state = NSMenuItem(title: completer.status.title, action: nil, keyEquivalent: "")
+        let state = NSMenuItem(title: completer.statusLine, action: nil, keyEquivalent: "")
         state.isEnabled = false
         menu.addItem(state)
+        if let notice = completer.engineNotice {
+            let engine = NSMenuItem(title: notice, action: #selector(openEngines), keyEquivalent: "")
+            engine.target = self
+            menu.addItem(engine)
+        }
         if completer.status == .noPermission {
             menu.addItem(withTitle: L("Concedi il permesso…"), action: #selector(openPermissions), keyEquivalent: "").target = self
         }
@@ -96,6 +102,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     @objc private func openPermissions() { model.showOnboarding() }
     @objc private func openSettings() { model.showSettings(.general) }
+    @objc private func openEngines() { model.showSettings(.engines) }
     @objc private func openUpdates() { model.showSettings(.updates) }
     @objc private func openFeedback() { model.showSettings(.feedback) }
     @objc private func openOnboarding() { model.showOnboarding() }

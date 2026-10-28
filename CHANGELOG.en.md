@@ -3,6 +3,28 @@
 English notes, same format as CHANGELOG.md (the Italian one is the reference). The app uses these when its language
 is English; versions missing here fall back to the Italian notes.
 
+## 0.2.0 · 2026-10-28
+
+Gemma 3 becomes the recommended engine: more accurate, faster suggestions that appear while the model is still writing them. Everything stays on the Mac.
+
+### New features
+- **Gemma with llama.cpp.** A new engine: Gemma 3 1B, more accurate and faster than Apple Intelligence. It needs llama.cpp (installed with Homebrew, also from the guide or Settings › Engines); on first use it downloads the model, about 0.8 GB. The server runs only on your Mac, starts when you type and stops by itself after a few idle minutes.
+- **Automatic.** The default engine: Gemma when llama.cpp is there, otherwise Apple Intelligence, otherwise rules and memory. While Gemma starts, the others answer, without waiting.
+- **Ollama.** If Ollama is open and already has the model (for example gemma3:1b), Suggeritore uses it instead of starting its own server. You can turn this off in Settings › Engines.
+- **More models.** Gemma 3 1B, 4B and 12B ready to choose, plus the ones you add with a Hugging Face repository or an Ollama name.
+- **Instructions per app.** One sentence for the model that applies only in one app, in Settings › Apps, with three recommended profiles you accept with a button: formal Mail, chatty Messages, concise Notes.
+- **Abbreviations.** Type an abbreviation and then a space: it becomes the full text ("btw" becomes "by the way", ";sign" your signature). You choose them in Settings › Suggestions; none is active by default.
+- **Status at a glance.** At the top of Settings › General: the state, the engine in use, words accepted today and all time, accepted suggestions and the average response time. The same view will go into Cocaine's island.
+
+### Improvements
+- **The continuation appears as it arrives.** The grey text shows up with the first words and fills in as it goes, with Gemma and with Apple Intelligence: the wait feels shorter.
+- **Faster Apple Intelligence.** It reads the last 700 characters instead of two thousand, always picks the most likely word and gets shorter instructions: it answers sooner and wanders less.
+- **Settings › Engines.** The Apple Intelligence tab becomes Engines: engine choice, llama.cpp and server status (start, stop, minutes before stopping), model, Apple Intelligence and your instructions.
+- **First-run guide.** A new step, "The engine": what changes between Gemma and Apple Intelligence and how to install llama.cpp, with the command to copy or run in Terminal.
+- **Menu bar.** The status line also names the engine ("Ready · Gemma 3 1B") and says so while Gemma starts or downloads the model.
+- **Rewrite the selection with Gemma.** Rewriting uses the same engine as suggestions.
+- **Diagnostics.** The report also lists the engine in use, server status, selected model and average response time; never paths or text.
+
 ## 0.1.0 · 2026-10-28
 
 First version: what you are about to write, suggested in grey in any Mac app, all on the Mac.
