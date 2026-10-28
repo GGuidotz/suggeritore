@@ -24,6 +24,9 @@ Suggeritore becomes Type_w/Me: faster suggestions, context from the screen, an e
 - **The next one.** After you accept a suggestion, the following one is requested right away.
 - **Timing diagnostics.** The report shows how long reading the field, the first text and the full answer take, how many prompt tokens come from the cache and how many tokens per second; never text.
 - **Your instructions** move from Engines to Personalization.
+- **Length that adapts.** With the base model the suggestion goes on while the model is sure of the next word and stops at the first uncertain one, within the maximum of the chosen length: no made-up tails and no stops halfway.
+- **Grey text everywhere.** The suggestion always appears after the caret, like the text you type, and wraps from the start of the line when it does not fit. Where the field does not tell where the caret is, no more box above the text.
+- **No stalls after a long suggestion.** After you accept a suggestion, the next one waits until the inserted text is really in the field; an extra Tab right after does not move the caret to another field.
 
 ## 0.2.0 · 2026-10-28
 

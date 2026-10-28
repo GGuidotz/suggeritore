@@ -83,6 +83,11 @@ final class Completer: ObservableObject {
     /// Del suggerimento sullo schermo hai già preso qualcosa (per contare i suggerimenti accettati una volta sola).
     private var acceptedCurrent = false
     private var debounceTask: Task<Void, Never>?
+    /// Dopo un'accettazione: la fine del testo appena scritto, che deve comparire nel campo prima di chiedere il seguito
+    /// (un testo lungo ci mette un po' ad arrivare all'app), e quante volte si è già riprovato.
+    private var expectedTail: String?
+    private var expectedRetries = 0
+    private var lastAcceptAt = Date.distantPast
     private var requestTask: Task<Void, Never>?
     private var generation = 0
     /// Il suggerimento sullo schermo è ancora a metà: il modello lo sta scrivendo.
@@ -92,6 +97,8 @@ final class Completer: ObservableObject {
     /// Dove sta il testo fantasma: mentre arrivano i pezzi il cursore non si muove, non serve rileggerlo.
     private var ghostCaret: CGRect?
     private var ghostFont: NSFont?
+    /// Il margine sinistro della riga del cursore: il testo fantasma che non ci sta continua sotto, da lì.
+    private var ghostLineStart: CGFloat?
     private var lastPartialAt = Date.distantPast
     /// Quando è partita la richiesta in corso e quando è comparso il suo primo pezzo.
     private var requestStartedAt = Date.distantPast
@@ -354,7 +361,14 @@ final class Completer: ObservableObject {
             }
             dismiss(reason: nil)
         }
+        // Tab subito dopo un'accettazione, mentre arriva il seguito: non va all'app (sposterebbe il fuoco o scriverebbe
+        // una tabulazione), il seguito compare tra un attimo.
+        if Date().timeIntervalSince(lastAcceptAt) < 0.6,
+           prefs.acceptWord.matches(keyCode: s.keyCode, flags: s.flags) || prefs.acceptAll.matches(keyCode: s.keyCode, flags: s.flags) {
+            return .swallow
+        }
         guard !s.hasCommandOrControl else { return .pass }
+        expectedTail = nil   // scrivi tu: niente più attesa del testo accettato
         if s.isPrintable {
             let wantsFix = prefs.italianCorrections || !prefs.abbreviations.isEmpty
             if wantsFix, Self.isBoundary(s.characters) { scheduleBoundaryFix(boundary: s.characters) }
@@ -394,6 +408,18 @@ final class Completer: ObservableObject {
         guard !prefs.isExcluded(field.bundleID) else { return }
         if ignoreOwnProcess, field.pid == getpid() { return }
         guard let before = FocusReader.text(before: field, max: TextContext.maxBefore) else { return }
+        // Il testo appena accettato non è ancora tutto nel campo: si riprova tra poco (al più mezzo secondo).
+        if let tail = expectedTail {
+            if !before.hasSuffix(tail), expectedRetries < 10 {
+                expectedRetries += 1
+                let retries = expectedRetries
+                scheduleSuggestion(delay: 0.05)
+                expectedTail = tail
+                expectedRetries = retries
+                return
+            }
+            expectedTail = nil
+        }
         guard before.trimmingCharacters(in: .whitespacesAndNewlines).count >= 3 else { return }
         var after = ""
         if prefs.midLine {
@@ -476,7 +502,7 @@ final class Completer: ObservableObject {
             guard cleaned != current.text else { return }
             lastPartialAt = now
             suggestion = Suggestion(text: cleaned, source: source)
-            overlay.show(cleaned, font: ghostFont, caret: ghostCaret, fieldFrame: field.frame)
+            overlay.show(cleaned, font: ghostFont, caret: ghostCaret, fieldFrame: field.frame, lineStartX: ghostLineStart)
             return
         }
         guard suggestion == nil else { return }
@@ -505,7 +531,7 @@ final class Completer: ObservableObject {
         if wasStreaming {
             if suggestion?.text != cleaned {
                 suggestion = Suggestion(text: cleaned, source: source)
-                overlay.show(cleaned, font: ghostFont, caret: ghostCaret, fieldFrame: self.field?.frame)
+                overlay.show(cleaned, font: ghostFont, caret: ghostCaret, fieldFrame: self.field?.frame, lineStartX: ghostLineStart)
             }
             refreshStatus()
             return
@@ -604,7 +630,8 @@ final class Completer: ObservableObject {
         let caret = FocusReader.caretBounds(field, afterNewline: context.before.last?.isNewline == true)
         ghostCaret = caret
         ghostFont = caret == nil ? nil : FocusReader.font(field)
-        overlay.show(s.text, font: ghostFont, caret: caret, fieldFrame: field.frame)
+        ghostLineStart = caret == nil ? nil : FocusReader.lineStartX(field, before: context.before)
+        overlay.show(s.text, font: ghostFont, caret: caret, fieldFrame: field.frame, lineStartX: ghostLineStart)
         refreshStatus()
     }
 
@@ -615,7 +642,8 @@ final class Completer: ObservableObject {
             guard let self, let s = self.suggestion, let field = FocusReader.focusedField() else { return }
             self.field = field
             let caret = FocusReader.caretBounds(field, afterNewline: false)
-            self.overlay.show(s.text, font: caret == nil ? nil : FocusReader.font(field), caret: caret, fieldFrame: field.frame)
+            self.overlay.show(s.text, font: caret == nil ? nil : FocusReader.font(field), caret: caret, fieldFrame: field.frame,
+                              lineStartX: self.ghostLineStart)
         }
     }
 
@@ -632,7 +660,7 @@ final class Completer: ObservableObject {
         prefs.addAcceptedWords(1)
         if rest.trimmingCharacters(in: .whitespaces).isEmpty {
             finishSuggestion(learn: true)
-            scheduleSuggestion(delay: Self.afterAcceptDelay)
+            requestAfterAccepting(first)
         } else {
             suggestion = Suggestion(text: rest, source: s.source)
             reposition(after: 80)   // il testo appena scritto deve arrivare all'app prima di rileggere il cursore
@@ -647,11 +675,19 @@ final class Completer: ObservableObject {
         noteAccepted()
         prefs.addAcceptedWords(s.words.count)
         finishSuggestion(learn: true)
-        scheduleSuggestion(delay: Self.afterAcceptDelay)
+        requestAfterAccepting(s.text)
     }
 
-    /// Dopo un'accettazione il seguito dopo si chiede quasi subito: il tempo che il testo arrivi all'app.
-    private static let afterAcceptDelay = 0.08
+    /// Dopo un'accettazione il seguito dopo si chiede quasi subito: il tempo che il testo arrivi all'app, di più se è
+    /// lungo; e la richiesta aspetta comunque di trovarlo nel campo (expectedTail), così non si pianta dopo un seguito
+    /// lungo.
+    private func requestAfterAccepting(_ typed: String) {
+        lastAcceptAt = Date()
+        let tail = String(typed.suffix(12))
+        expectedTail = tail.trimmingCharacters(in: .whitespaces).isEmpty ? nil : tail
+        expectedRetries = 0
+        scheduleSuggestion(delay: 0.08 + Double(typed.utf16.count) * 0.002)
+    }
 
     private func noteAccepted() {
         if let historyField { history.markAccepted(field: historyField) }

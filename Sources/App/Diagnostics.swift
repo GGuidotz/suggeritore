@@ -131,6 +131,7 @@ enum DiagnosticsReport {
             row("Average response", "none yet")
         }
         row("Latency", completer.latencySummary ?? "none yet")
+        row("Ghost without caret", "\(completer.overlay.noCaret)")
         row("Keep model loaded", yesNo(prefs.keepModelLoaded))
         row("Status", "\(completer.status)")
         if let error = completer.lastError { row("Last model error", error) }

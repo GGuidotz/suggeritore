@@ -108,33 +108,44 @@ if [ "${TYPEWITHME_ICON:-${SUGGERITORE_ICON:-}}" != classic ] && [ -d Resources/
 fi
 
 # llama-server dentro l'app (Contents/Helpers/llama, con le sue librerie): chi installa non ha bisogno di Homebrew.
-# Dalla release di llama.cpp scritta in packaging/llama.cpp-version ("latest": l'ultima, risolta adesso), solo per
+# Dalla build di llama.cpp scritta in packaging/llama.cpp-version ("bNNNN"; "latest": l'ultima, risolta adesso), solo per
 # Apple silicon; scaricata una volta in build/llama-cache. Senza rete si continua senza: l'app usa quello di Homebrew.
 # TYPEWITHME_LLAMA=none ./build.sh … salta questo passo.
 LLAMA_TAG=""
 if [ "${TYPEWITHME_LLAMA:-}" != none ]; then
   LLAMA_TAG=$(tr -d '[:space:]' < packaging/llama.cpp-version 2>/dev/null || echo latest)
   if [ -z "$LLAMA_TAG" ] || [ "$LLAMA_TAG" = latest ]; then
-    LLAMA_TAG=$(curl -fsSI https://github.com/ggml-org/llama.cpp/releases/latest 2>/dev/null \
-      | awk 'tolower($1)=="location:" {print $2}' | tr -d '\r' | sed 's|.*/tag/||') || true
+    # Le release "vX.Y.Z" di llama.cpp non hanno i binari: il file nightly-tag.txt dice la build "bNNNN" che li ha.
+    LLAMA_TAG=$(curl -fsSL https://github.com/ggml-org/llama.cpp/releases/latest/download/nightly-tag.txt 2>/dev/null \
+      | tr -d '[:space:]') || true
   fi
   LLAMA_CACHE="$BUILD/llama-cache/$LLAMA_TAG"
   if [ -n "$LLAMA_TAG" ] && [ ! -x "$LLAMA_CACHE/llama-server" ]; then
-    ZIP="$BUILD/llama-cache/llama-$LLAMA_TAG-bin-macos-arm64.zip"
     mkdir -p "$BUILD/llama-cache"
-    if curl -fsSL -o "$ZIP" "https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA_TAG/llama-$LLAMA_TAG-bin-macos-arm64.zip"; then
+    BASE="https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA_TAG/llama-$LLAMA_TAG-bin-macos-arm64"
+    ARCHIVE=""
+    # Oggi .tar.gz, nelle release più vecchie .zip.
+    for ext in tar.gz zip; do
+      if curl -fsSL -o "$BUILD/llama-cache/llama.$ext" "$BASE.$ext"; then ARCHIVE="$BUILD/llama-cache/llama.$ext"; break; fi
+    done
+    if [ -n "$ARCHIVE" ]; then
       UNZIP=$(mktemp -d)
-      unzip -q "$ZIP" -d "$UNZIP"
+      case "$ARCHIVE" in
+        *.zip) unzip -q "$ARCHIVE" -d "$UNZIP" ;;
+        *) tar -xzf "$ARCHIVE" -C "$UNZIP" ;;
+      esac
       SERVER=$(find "$UNZIP" -type f -name llama-server | head -n 1)
       if [ -n "$SERVER" ]; then
         rm -rf "$LLAMA_CACHE"; mkdir -p "$LLAMA_CACHE"
         cp "$SERVER" "$LLAMA_CACHE/"
-        find "${SERVER:h}" -maxdepth 1 -name '*.dylib' -exec cp -P {} "$LLAMA_CACHE/" \;
-        [ -f "$UNZIP/LICENSE" ] && cp "$UNZIP/LICENSE" "$LLAMA_CACHE/LICENSE-llama.cpp"
+        # Le librerie possono stare accanto all'eseguibile o in una cartella lib: tutte nella stessa cartella.
+        find "$UNZIP" -name '*.dylib' -exec cp -P {} "$LLAMA_CACHE/" \;
+        LICENSE_FILE=$(find "$UNZIP" -maxdepth 3 -name 'LICENSE*' | head -n 1)
+        [ -n "$LICENSE_FILE" ] && cp "$LICENSE_FILE" "$LLAMA_CACHE/LICENSE-llama.cpp"
         # Le librerie stanno accanto all'eseguibile: che le cerchi lì anche se la release non lo dice già.
         install_name_tool -add_rpath @loader_path "$LLAMA_CACHE/llama-server" 2>/dev/null || true
       fi
-      rm -rf "$UNZIP" "$ZIP"
+      rm -rf "$UNZIP" "$ARCHIVE"
     fi
   fi
   if [ -n "$LLAMA_TAG" ] && [ -x "$LLAMA_CACHE/llama-server" ]; then

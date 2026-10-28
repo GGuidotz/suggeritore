@@ -88,11 +88,12 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
         var object: [String: Any] = [:]
         object["prompt"] = Prompting.rawPrompt(request)
         object["n_predict"] = request.length.maxTokens
-        object["temperature"] = 0.3
-        object["top_k"] = 40
-        object["top_p"] = 0.9
+        // La parola più probabile, sempre: suggerimenti stabili, e la probabilità di ogni token per decidere dove
+        // fermarsi (ConfidenceStop). Niente stop a "\n": dopo una frase finita il modello va spesso a capo e il seguito
+        // è la riga dopo (Prompting.cleanCompletion la prende); ci si ferma a fine riga, sotto.
+        object["temperature"] = 0
         object["repeat_penalty"] = 1.1
-        object["stop"] = ["\n"]
+        object["n_probs"] = 1
         object["cache_prompt"] = true
         object["stream"] = true
         var urlRequest = URLRequest(url: baseURL.appendingPathComponent("completion"))
@@ -102,7 +103,8 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
         urlRequest.httpBody = (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
         let (bytes, response) = try await LocalHTTP.session.bytes(for: urlRequest)
         try Self.check(response)
-        var text = ""
+        var stop = ConfidenceStop(length: request.length)
+        var natural = false
         for try await line in bytes.lines {
             guard line.hasPrefix("data:") else { continue }
             let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
@@ -111,12 +113,32 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
             guard let chunk = Self.parse(payload) else { continue }
             note(chunk)
             if let piece = chunk["content"] as? String, !piece.isEmpty {
-                text += piece
-                partial(text)
+                if stop.add(piece, probability: Self.probability(chunk)) { break }
+                partial(stop.text)
+                // Finita la riga (dopo un eventuale a capo iniziale), il seguito è completo.
+                if AppleEngine.endsLine(stop.text) { natural = true; break }
             }
-            if (chunk["stop"] as? Bool) == true { break }
+            if (chunk["stop"] as? Bool) == true {
+                natural = (chunk["stop_type"] as? String) != "limit"
+                break
+            }
         }
-        return text
+        return stop.result(natural: natural)
+    }
+
+    /// La probabilità del pezzo (il prodotto di quelle dei suoi token), da "completion_probabilities" di llama-server:
+    /// "logprob" nelle versioni nuove, "prob" in quelle vecchie. nil se il server non la dà.
+    static func probability(_ chunk: [String: Any]) -> Double? {
+        guard let tokens = chunk["completion_probabilities"] as? [[String: Any]], !tokens.isEmpty else { return nil }
+        var product = 1.0
+        for token in tokens {
+            if let logprob = (token["logprob"] as? NSNumber)?.doubleValue { product *= exp(logprob) }
+            else if let prob = (token["prob"] as? NSNumber)?.doubleValue { product *= prob }
+            else if let probs = token["probs"] as? [[String: Any]], let first = probs.first,
+                    let prob = (first["prob"] as? NSNumber)?.doubleValue { product *= prob }
+            else { return nil }
+        }
+        return product
     }
 
     func rewrite(_ text: String, instruction: String, language: String?) async throws -> String {

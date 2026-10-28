@@ -24,6 +24,9 @@ Suggeritore diventa Type_w/Me: suggerimenti più rapidi, contesto dallo schermo,
 - **Il seguito dopo.** Accettato un suggerimento, quello successivo si chiede subito.
 - **Diagnostica dei tempi.** Il report dice quanto ci mettono lettura del campo, primo testo e risposta completa, quanti token del prompt vengono dalla cache e quanti token al secondo; mai testo.
 - **Le tue istruzioni** passano da Motori a Personalizzazione.
+- **Lunghezza che si adatta.** Con il modello base il suggerimento continua finché il modello è sicuro della parola dopo e si ferma alla prima incerta, entro il massimo della lunghezza scelta: niente code inventate e niente arresti a metà.
+- **Testo grigio ovunque.** Il suggerimento compare sempre dopo il cursore, come il testo che scrivi, e se non ci sta va a capo dall'inizio della riga. Dove il campo non dice dove sta il cursore niente più riquadro sopra il testo.
+- **Niente blocchi dopo un suggerimento lungo.** Accettato un suggerimento, il successivo aspetta che il testo inserito sia davvero nel campo; un Tab in più subito dopo non sposta il cursore in un altro campo.
 
 ## 0.2.0 · 2026-10-28
 

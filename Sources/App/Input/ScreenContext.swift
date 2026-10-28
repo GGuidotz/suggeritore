@@ -14,8 +14,8 @@ final class ScreenContext {
     /// Quanto vale un testo riconosciuto, e la distanza minima tra due aggiornamenti.
     private static let maxAge: TimeInterval = 20
     private static let minInterval: TimeInterval = 4
-    private static let maxPixels: CGFloat = 2000
-    private static let maxCharacters = 1_500
+    private nonisolated static let maxPixels: CGFloat = 2000
+    private nonisolated static let maxCharacters = 1_500
 
     private struct Snapshot {
         let pid: pid_t

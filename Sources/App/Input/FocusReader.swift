@@ -104,7 +104,35 @@ enum FocusReader {
         if let r = bounds(forRange: CFRange(location: caret, length: 0), in: field.element), plausible(r) {
             return CGRect(x: r.minX, y: r.minY, width: 0, height: r.height)
         }
+        // Chrome, Electron e WebKit spesso non danno i rettangoli per posizione ma sì per "text marker".
+        if let marker = copy(field.element, "AXSelectedTextMarkerRange") {
+            var out: CFTypeRef?
+            if AXUIElementCopyParameterizedAttributeValue(field.element, "AXBoundsForTextMarkerRange" as CFString, marker, &out) == .success,
+               let v = out, CFGetTypeID(v) == AXValueGetTypeID() {
+                var rect = CGRect.zero
+                if AXValueGetValue((v as! AXValue), .cgRect, &rect), rect.height > 4, rect.height < 300 {
+                    return CGRect(x: rect.maxX, y: rect.minY, width: 0, height: rect.height)
+                }
+            }
+        }
         return nil
+    }
+
+    /// La x del margine sinistro della riga del cursore (il primo carattere del paragrafo), coordinate AX: serve a
+    /// continuare il testo fantasma sulla riga sotto. `before` è il testo che finisce al cursore. nil se non si sa.
+    static func lineStartX(_ field: FocusedField, before: String) -> CGFloat? {
+        let afterNewline: Int
+        if let newline = before.lastIndex(where: { $0.isNewline }) {
+            afterNewline = before[before.index(after: newline)...].utf16.count
+        } else if before.utf16.count < field.caret {
+            return nil   // il testo letto non arriva all'inizio del campo
+        } else {
+            afterNewline = before.utf16.count
+        }
+        let start = field.caret - afterNewline
+        guard start >= 0, start < field.caret,
+              let r = bounds(forRange: CFRange(location: start, length: 1), in: field.element), r.height > 4 else { return nil }
+        return r.minX
     }
 
     /// Il rettangolo della selezione (per il pannello "Riscrivi"), coordinate AX.

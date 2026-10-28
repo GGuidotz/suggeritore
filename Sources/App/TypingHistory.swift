@@ -281,7 +281,7 @@ final class TypingHistory: ObservableObject {
         saveTask = nil
         guard let plain = try? JSONEncoder().encode(entries), let key = Self.key(create: true) else { return }
         let target = url
-        let work = {
+        let work: @Sendable () -> Void = {
             do {
                 let sealed = try AES.GCM.seal(plain, using: key).combined
                 guard let sealed else { return }
