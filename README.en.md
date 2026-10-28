@@ -1,8 +1,8 @@
-# Suggeritore
+# Type_w/Me
 
 What you are about to write, in every Mac app. [Italiano](README.md)
 
-Suggeritore lives in the macOS menu bar. While you type in a text field, in any app, after a short pause the proposed
+Type_w/Me lives in the macOS menu bar. While you type in a text field, in any app, after a short pause the proposed
 continuation appears in grey: Tab accepts it one word at a time, Shift-Tab all of it, Esc dismisses it; keep typing and
 it goes away by itself. The model runs on your Mac (Gemma 3 with llama.cpp, or Apple Intelligence): nothing leaves
 the Mac, no account.
@@ -19,7 +19,7 @@ first language.
   than Apple's model. On first use it downloads the model (about 0.8 GB); 4B and 12B are there too, and you can add
   other GGUF models from Hugging Face. If Ollama is open and already has the model, that is used.
 - **Apple Intelligence.** Already on your Mac, nothing to install, but weaker. With "Automatic" (the default)
-  Suggeritore uses Gemma when it's there and Apple Intelligence otherwise; with neither, rules and memory remain.
+  Type_w/Me uses Gemma when it's there and Apple Intelligence otherwise; with neither, rules and memory remain.
 - **The continuation appears as it arrives.** The grey text shows up with the first words and fills in as it goes.
 - **Your instructions.** One sentence for every suggestion (tone, style) and, if you like, one per app: formal Mail,
   chatty Messages, concise Notes are the recommended profiles, accepted with a button.
@@ -34,7 +34,7 @@ first language.
 - **Mid-line completion** (experimental): with text after the cursor, the continuation joins what follows.
 - **Clipboard as context**, if you choose so: the model sees the last thing you copied and uses it when relevant.
 - **Excluded apps.** Never in password fields or with secure input on; password managers and Terminal excluded by
-  default; from the menu bar you can turn Suggeritore off in the app you're in.
+  default; from the menu bar you can turn Type_w/Me off in the app you're in.
 
 ## How it works
 
@@ -43,7 +43,7 @@ and to see keys; on some macOS versions Input Monitoring is needed too. The ghos
 the cursor. When the keyboard is idle the app does nothing: the model works only after a pause while you type and stops
 as soon as you resume. Its footprint is shown in Settings › General, with accepted words and the average response time.
 
-Gemma runs in `llama-server` (llama.cpp), a process Suggeritore starts with the first request, only on 127.0.0.1 and on
+Gemma runs in `llama-server` (llama.cpp), a process Type_w/Me starts with the first request, only on 127.0.0.1 and on
 a free port: the text never goes on the network. The first time llama.cpp downloads the model from Hugging Face into its
 cache (`~/Library/Caches/llama.cpp`); after a few minutes without requests (10, adjustable) the server stops, and it
 quits with the app. Ollama, when open, exposes the same endpoint (`/v1/chat/completions`) and is used the same way.
@@ -52,18 +52,18 @@ While Gemma starts, Apple Intelligence answers if it's available.
 ## Installation
 
 ```sh
-brew install --cask gguidotz/tap/suggeritore
+brew install --cask gguidotz/tap/typewithme
 ```
 
 Homebrew downloads the DMG from the release, copies the app to Applications and removes the quarantine flag (the app is
-not notarized), so no "Open anyway". Update: `brew upgrade --cask suggeritore`. Uninstall:
-`brew uninstall --cask suggeritore` (`--zap` also removes preferences and the phrase memory).
+not notarized), so no "Open anyway". Update: `brew upgrade --cask typewithme`. Uninstall:
+`brew uninstall --cask typewithme` (`--zap` also removes preferences and the phrase memory).
 
 Or build from source: macOS 26 and the command line tools (`xcode-select --install`) are required.
 
 ```sh
-git clone https://github.com/GGuidotz/suggeritore.git
-cd suggeritore
+git clone https://github.com/GGuidotz/typewithme.git
+cd typewithme
 ./build.sh --install
 ```
 
@@ -115,8 +115,8 @@ the DMG and cask update in the tap).
 
 ## Author
 
-Developed by **gguidotz**: [github.com/GGuidotz/suggeritore](https://github.com/GGuidotz/suggeritore) ·
-giulioguidotz@yahoo.com. For reports and ideas, the [issues](https://github.com/GGuidotz/suggeritore/issues) are best.
+Developed by **gguidotz**: [github.com/GGuidotz/typewithme](https://github.com/GGuidotz/typewithme) ·
+giulioguidotz@yahoo.com. For reports and ideas, the [issues](https://github.com/GGuidotz/typewithme/issues) are best.
 
 ## License
 

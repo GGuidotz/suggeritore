@@ -1,4 +1,4 @@
-// Dove Suggeritore non scrive mai: gestori di password, terminali, finestre di sistema. L'elenco di partenza si può
+// Dove Type_w/Me non scrive mai: gestori di password, terminali, finestre di sistema. L'elenco di partenza si può
 // cambiare dalle impostazioni e dal menu nella barra ("In questa app").
 
 import Foundation

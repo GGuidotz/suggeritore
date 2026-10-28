@@ -1,7 +1,7 @@
 // Controlla che l'icona dell'app si disegni davvero, come la disegnerà il Dock (IconServices), su una copia dell'app in
 // un percorso nuovo, così la cache delle icone non conta. Lo esegue build.sh:
 //   swiftc tools/icon-check/main.swift tools/icon-check/IconMetrics.swift -o build/icon-check
-//   build/icon-check "build/Suggeritore.app" build/icon-out build
+//   build/icon-check "build/TypeWithMe.app" build/icon-out build
 // Scrive build/icon-preview.png (e build/icon-actool.png dall'.icns generato da actool), stampa una riga di misure.
 // Uscita: 0 icona a posto, 1 icona vuota (build.sh passa alla classica), 2 controllo non riuscito.
 
@@ -9,7 +9,7 @@ import AppKit
 
 let arguments = CommandLine.arguments
 guard arguments.count == 4 else {
-    print("uso: icon-check <Suggeritore.app> <cartella di actool> <cartella per le anteprime>")
+    print("uso: icon-check <TypeWithMe.app> <cartella di actool> <cartella per le anteprime>")
     exit(2)
 }
 let app = URL(fileURLWithPath: arguments[1])
@@ -21,8 +21,8 @@ func savePNG(_ rep: NSBitmapImageRep, _ name: String) {
     try? rep.representation(using: .png, properties: [:])?.write(to: previews.appendingPathComponent(name))
 }
 
-let scratch = fm.temporaryDirectory.appendingPathComponent("suggeritore-icon-check-\(UUID().uuidString)", isDirectory: true)
-let copy = scratch.appendingPathComponent("Suggeritore.app")
+let scratch = fm.temporaryDirectory.appendingPathComponent("typewithme-icon-check-\(UUID().uuidString)", isDirectory: true)
+let copy = scratch.appendingPathComponent("TypeWithMe.app")
 do {
     try fm.createDirectory(at: scratch, withIntermediateDirectories: true)
     try fm.copyItem(at: app, to: copy)

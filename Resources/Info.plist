@@ -3,13 +3,15 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleIdentifier</key>
-	<string>local.suggeritore.app</string>
+	<string>com.gguidotz.typewithme</string>
 	<key>CFBundleName</key>
-	<string>Suggeritore</string>
+	<string>TypeWithMe</string>
 	<key>CFBundleDisplayName</key>
-	<string>Suggeritore</string>
+	<string>Type_w/Me</string>
+	<key>LSHasLocalizedDisplayName</key>
+	<true/>
 	<key>CFBundleExecutable</key>
-	<string>Suggeritore</string>
+	<string>TypeWithMe</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -32,7 +34,7 @@
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>© 2026 gguidotz · github.com/GGuidotz/suggeritore</string>
+	<string>© 2026 gguidotz · github.com/GGuidotz/typewithme</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>

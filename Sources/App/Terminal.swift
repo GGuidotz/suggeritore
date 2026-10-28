@@ -1,4 +1,4 @@
-// Eseguire un comando nel Terminale, quando lo chiedi tu: per aggiornare Suggeritore (Updater) e per installare
+// Eseguire un comando nel Terminale, quando lo chiedi tu: per aggiornare Type_w/Me (Updater) e per installare
 // llama.cpp con Homebrew (guida e Impostazioni › Motori). La prima volta macOS chiede il permesso Automazione.
 // Più dove si trovano Homebrew e i suoi programmi.
 

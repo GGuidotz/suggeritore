@@ -6,7 +6,7 @@ import AppKit
 import Combine
 
 @main
-enum SuggeritoreMain {
+enum TypeWithMeMain {
     static func main() {
         MainActor.assumeIsolated {
             let app = NSApplication.shared
@@ -25,7 +25,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var bag = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Prima che nascano Preferences e AppModel: portano con sé le scelte dell'app che si chiamava Suggeritore.
+        let migrated = Migration.runIfNeeded()
         let model = AppModel.shared
+        if migrated { diag(.app, "migrated from \(AppInfo.legacySupportFolder)") }
         NSApp.mainMenu = MainMenu.make()
         model.prefs.$language.dropFirst().receive(on: RunLoop.main)
             .sink { _ in NSApp.mainMenu = MainMenu.make() }
@@ -60,14 +63,14 @@ enum MainMenu {
         let main = NSMenu()
 
         let app = NSMenu()
-        app.addItem(withTitle: L("Informazioni su Suggeritore"), action: #selector(AppDelegate.showAbout(_:)),
+        app.addItem(withTitle: L("Informazioni su Type_w/Me"), action: #selector(AppDelegate.showAbout(_:)),
                     keyEquivalent: "").target = AppDelegate.shared
         app.addItem(.separator())
         app.addItem(withTitle: L("Impostazioni…"), action: #selector(AppDelegate.openSettings(_:)),
                     keyEquivalent: ",").target = AppDelegate.shared
         app.addItem(.separator())
-        app.addItem(withTitle: L("Esci da Suggeritore"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        main.addItem(submenu: app, title: "Suggeritore")
+        app.addItem(withTitle: L("Esci da Type_w/Me"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        main.addItem(submenu: app, title: AppInfo.name)
 
         let file = NSMenu(title: L("Archivio"))
         file.addItem(withTitle: L("Chiudi"), action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")

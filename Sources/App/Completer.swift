@@ -248,8 +248,8 @@ final class Completer: ObservableObject {
     }
 
     /// I dati per la vista compatta (Sources/Island): stato, motore, conteggi.
-    var statusInfo: SuggeritoreStatusInfo {
-        var tone: SuggeritoreStatusInfo.Tone
+    var statusInfo: TypeWithMeStatusInfo {
+        var tone: TypeWithMeStatusInfo.Tone
         switch status {
         case .ready: tone = .ok
         case .thinking, .suggesting: tone = .busy
@@ -257,7 +257,7 @@ final class Completer: ObservableObject {
         case .noPermission, .secureInput: tone = .warning
         }
         if tone == .ok, llama.state.isBusy, preferredKind == .gemma { tone = .busy }
-        return SuggeritoreStatusInfo(statusText: status.title,
+        return TypeWithMeStatusInfo(statusText: status.title,
                                      tone: tone,
                                      engineName: currentEngineName ?? L("Solo regole e memoria"),
                                      engineDetail: engineNotice,

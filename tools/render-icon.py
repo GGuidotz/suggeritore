@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Disegna l'icona classica di Suggeritore: un foglio chiaro con tre righe di testo scritte (scure), il cursore e,
+"""Disegna l'icona classica di Type_w/Me: un foglio chiaro con tre righe di testo scritte (scure), il cursore e,
 dopo il cursore, il seguito suggerito in grigio chiaro. Fondo che sfuma dal bianco al grigio perla come nelle altre app
 della famiglia, con la forma arrotondata delle icone di macOS.
     python3 -I tools/render-icon.py        Resources/Icon/AppIcon-1024.png

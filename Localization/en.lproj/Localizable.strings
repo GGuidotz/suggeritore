@@ -1,4 +1,4 @@
-/* Suggeritore: en. La chiave è il testo italiano (vedi Sources/Core/Localization.swift). */
+/* Type_w/Me: en. La chiave è il testo italiano (vedi Sources/Core/Localization.swift). */
 " 10 davanti all'ufficio." = " 10 in front of the office.";
 " sentiamo la prossima settimana." = " talk next week.";
 "%@ (consigliato)" = "%@ (recommended)";
@@ -22,7 +22,7 @@
 "Accettati" = "Accepted";
 "Aggiorna nel Terminale" = "Update in Terminal";
 "Aggiornamenti" = "Updates";
-"Aggiungi al contatore di Suggeritore" = "Add to Suggeritore's counter";
+"Aggiungi al contatore di Type_w/Me" = "Add to Type_w/Me's counter";
 "Aggiungi il modello" = "Add model";
 "Aggiungi un'app aperta…" = "Add an open app…";
 "Aggiungi" = "Add";
@@ -44,11 +44,13 @@
 "Avanti" = "Next";
 "Avvia ora" = "Start now";
 "Basta uno dei due: il repository per llama.cpp o il nome per Ollama. Il modello nuovo diventa quello scelto." = "One of the two is enough: the repository for llama.cpp or the name for Ollama. The new model becomes the selected one.";
-"Benvenuto in Suggeritore" = "Welcome to Suggeritore";
+"Benvenuto in Type_w/Me" = "Welcome to Type_w/Me";
 "Breve" = "Short";
 "Cambia" = "Change";
 "Chiudi" = "Close";
 "Ci vediamo domani alle" = "See you tomorrow at";
+"Parola" = "Word";
+"Solo la parola che stai scrivendo, mai quella dopo." = "Only the word you're typing, never the next one.";
 "circa 0,8 GB" = "about 0.8 GB";
 "circa 2,5 GB" = "about 2.5 GB";
 "circa 7 GB" = "about 7 GB";
@@ -62,7 +64,7 @@
 "Consenti" = "Allow";
 "Consigliato: Automatico. Usa Gemma quando c'è llama.cpp (o Ollama con il modello), altrimenti Apple Intelligence; mentre Gemma si avvia risponde Apple Intelligence. Con \"Solo regole e memoria\" nessun modello viene chiamato: restano correzioni, abbreviazioni, formule fisse e le frasi che hai accettato." = "Recommended: Automatic. It uses Gemma when llama.cpp is there (or Ollama with the model), otherwise Apple Intelligence; while Gemma starts, Apple Intelligence answers. With \"Rules and memory only\" no model is ever called: corrections, abbreviations, fixed phrases and the phrases you accepted remain.";
 "Consigliato: Automatico. Usa Gemma quando c'è llama.cpp, altrimenti Apple Intelligence. Si cambia in Impostazioni › Motori." = "Recommended: Automatic. It uses Gemma when llama.cpp is there, otherwise Apple Intelligence. You can change it in Settings › Engines.";
-"Consumo di Suggeritore" = "Suggeritore's own usage";
+"Consumo di Type_w/Me" = "Type_w/Me's own usage";
 "Contesto" = "Context";
 "Continua" = "Continue";
 "Controlla automaticamente (ogni 6 ore)" = "Check automatically (every 6 hours)";
@@ -83,9 +85,9 @@
 "Diagnostica" = "Diagnostics";
 "Dimentica tutto" = "Forget everything";
 "Disponibile la versione %@" = "Version %@ is available";
-"Disponibile Suggeritore %@" = "Suggeritore %@ is available";
+"Disponibile Type_w/Me %@" = "Type_w/Me %@ is available";
 "Due permessi" = "Two permissions";
-"Esci da Suggeritore" = "Quit Suggeritore";
+"Esci da Type_w/Me" = "Quit Type_w/Me";
 "Escluso in %@" = "Excluded in %@";
 "Esempio: hai scritto %@ e il suggerimento è %@" = "Example: you wrote %@ and the suggestion is %@";
 "Feedback" = "Feedback";
@@ -122,22 +124,22 @@
 "Il server di Gemma ha risposto con un errore." = "The Gemma server answered with an error.";
 "Il suggerimento arriva dopo una pausa nella scrittura. A metà riga il seguito deve raccordarsi con il testo che c'è dopo il cursore: funziona, ma non sempre bene." = "The suggestion comes after a pause in your typing. Mid-line, the continuation has to join the text after the cursor: it works, but not always well.";
 "Il Terminale non ha eseguito il comando: copialo e incollalo tu. (%@)" = "Terminal did not run the command: copy and paste it yourself. (%@)";
-"Impostazioni di Suggeritore" = "Suggeritore Settings";
+"Impostazioni di Type_w/Me" = "Type_w/Me Settings";
 "Impostazioni…" = "Settings…";
-"In Impostazioni di Sistema › Privacy e sicurezza trovi Suggeritore nell'elenco: accendi l'interruttore. Niente esce dal Mac." = "In System Settings › Privacy & Security you'll find Suggeritore in the list: turn the switch on. Nothing leaves the Mac.";
+"In Impostazioni di Sistema › Privacy e sicurezza trovi Type_w/Me nell'elenco: accendi l'interruttore. Niente esce dal Mac." = "In System Settings › Privacy & Security you'll find Type_w/Me in the list: turn the switch on. Nothing leaves the Mac.";
 "In pausa" = "Paused";
 "In uso adesso" = "In use now";
 "Incolla" = "Paste";
 "Indietro" = "Back";
-"Indispensabile: senza, Suggeritore non può fare niente." = "Essential: without it, Suggeritore can't do anything.";
-"Informazioni su Suggeritore" = "About Suggeritore";
+"Indispensabile: senza, Type_w/Me non può fare niente." = "Essential: without it, Type_w/Me can't do anything.";
+"Informazioni su Type_w/Me" = "About Type_w/Me";
 "Inizia" = "Start";
 "Input sicuro attivo: niente suggerimenti" = "Secure input active: no suggestions";
 "Installa nel Terminale" = "Install in Terminal";
 "Installato" = "Installed";
 "Invia un feedback…" = "Send feedback…";
 "Istruzioni per app" = "Instructions per app";
-"La lingua è quella dell'interfaccia di Suggeritore. I suggerimenti seguono la lingua in cui stai scrivendo." = "This is the language of Suggeritore's interface. Suggestions follow the language you are writing in.";
+"La lingua è quella dell'interfaccia di Type_w/Me. I suggerimenti seguono la lingua in cui stai scrivendo." = "This is the language of Type_w/Me's interface. Suggestions follow the language you are writing in.";
 "La sigla non può contenere spazi." = "The abbreviation cannot contain spaces.";
 "Le memorie di Cotypist sono cifrate e non si possono importare. Il suo modello Gemma 3 1B base, se c'è, compare già nel catalogo di Impostazioni › Motori e si usa senza scaricare nulla." = "Cotypist's memories are encrypted and can't be imported. Its Gemma 3 1B base model, if present, already shows up in the catalog in Settings › Engines and works with nothing to download.";
 "Le note complete sono in Impostazioni › Aggiornamenti." = "The full notes are in Settings › Updates.";
@@ -171,9 +173,9 @@
 "Motori" = "Engines";
 "Nascondi" = "Hide";
 "Nei campi password e nelle app con input sicuro non suggerisce mai. Gestori di password e Terminale sono esclusi in partenza." = "It never suggests in password fields or in apps with secure input. Password managers and Terminal are excluded by default.";
-"Nella barra dei menu trovi lo stato, la pausa e \"Suggerisci in questa app\" per spegnere Suggeritore dove non lo vuoi." = "In the menu bar you'll find the status, pause and \"Suggest in this app\" to turn Suggeritore off where you don't want it.";
+"Nella barra dei menu trovi lo stato, la pausa e \"Suggerisci in questa app\" per spegnere Type_w/Me dove non lo vuoi." = "In the menu bar you'll find the status, pause and \"Suggest in this app\" to turn Type_w/Me off where you don't want it.";
 "Nessun modello istruito disponibile: per riscrivere serve Apple Intelligence o un Gemma istruito (Impostazioni › Motori)." = "No instruction-tuned model available: rewriting needs Apple Intelligence or an instruction-tuned Gemma (Settings › Engines).";
-"Niente esce dal Mac: i permessi servono solo a leggere il campo con il fuoco e a scriverci. Dopo averli concessi, se la voce nella barra resta chiara, riapri Suggeritore." = "Nothing leaves the Mac: the permissions are only for reading the focused field and writing into it. After granting them, if the menu bar icon stays dimmed, reopen Suggeritore.";
+"Niente esce dal Mac: i permessi servono solo a leggere il campo con il fuoco e a scriverci. Dopo averli concessi, se la voce nella barra resta chiara, riapri Type_w/Me." = "Nothing leaves the Mac: the permissions are only for reading the focused field and writing into it. After granting them, if the menu bar icon stays dimmed, reopen Type_w/Me.";
 "No, non leggerli" = "No, don't read it";
 "Nome in Ollama" = "Name in Ollama";
 "Nome" = "Name";
@@ -183,7 +185,7 @@
 "Non riesco a cambiare l'apertura all'accesso: %@" = "Can't change open at login: %@";
 "Note" = "Notes";
 "Novità di questa versione" = "What's new in this version";
-"Novità di Suggeritore" = "What's New in Suggeritore";
+"Novità di Type_w/Me" = "What's New in Type_w/Me";
 "Novità e aggiornamenti…" = "What's New and updates…";
 "Novità" = "What's New";
 "Ollama è aperto ma non ha %@: scaricalo con \"ollama pull %@\", oppure installa llama.cpp." = "Ollama is open but doesn't have %@: download it with \"ollama pull %@\", or install llama.cpp.";
@@ -204,7 +206,7 @@
 "Per vedere in che campo scrivi e appoggiarci il suggerimento, macOS chiede il permesso Accessibilità. Per vedere Tab ed Esc, su alcune versioni, anche Monitoraggio input." = "To see which field you type in and place the suggestion there, macOS asks for the Accessibility permission. To see Tab and Esc, on some versions, also Input Monitoring.";
 "Percorso di llama-server" = "llama-server path";
 "Permessi" = "Permissions";
-"Permesso concesso ma macOS non consegna ancora i tasti: chiudi e riapri Suggeritore." = "Permission granted but macOS isn't delivering keys yet: quit and reopen Suggeritore.";
+"Permesso concesso ma macOS non consegna ancora i tasti: chiudi e riapri Type_w/Me." = "Permission granted but macOS isn't delivering keys yet: quit and reopen Type_w/Me.";
 "Più breve" = "Shorter";
 "Più formale" = "More formal";
 "Più grande è il modello, più è preciso e più è lento: per i suggerimenti mentre scrivi basta il 1B. Con Ollama il modello va scaricato prima: ollama pull seguito dal nome." = "The bigger the model, the more accurate and the slower it is: for suggestions while you type, 1B is enough. With Ollama the model must be downloaded first: ollama pull followed by the name.";
@@ -218,7 +220,7 @@
 "Questo Mac non supporta Apple Intelligence." = "This Mac doesn't support Apple Intelligence.";
 "Questo modello continua il testo ma non segue istruzioni: per riscrivere scegli un modello istruito o Apple Intelligence." = "This model continues the text but doesn't follow instructions: to rewrite, choose an instruction-tuned model or Apple Intelligence.";
 "Questo modello si usa solo con Ollama: apri Ollama e scaricalo con \"ollama pull\"." = "This model works only with Ollama: open Ollama and download it with \"ollama pull\".";
-"Qui Suggeritore non legge e non scrive mai. Nei campi password e con l'input sicuro acceso non lo fa comunque, in nessuna app. Dal menu nella barra puoi spegnere l'app in cui ti trovi." = "Here Suggeritore never reads or writes. In password fields and with secure input on it doesn't anyway, in any app. From the menu bar you can turn off the app you're in.";
+"Qui Type_w/Me non legge e non scrive mai. Nei campi password e con l'input sicuro acceso non lo fa comunque, in nessuna app. Dal menu nella barra puoi spegnere l'app in cui ti trovi." = "Here Type_w/Me never reads or writes. In password fields and with secure input on it doesn't anyway, in any app. From the menu bar you can turn off the app you're in.";
 "Report copiato: incollalo nella segnalazione." = "Report copied: paste it into the report.";
 "Repository Hugging Face" = "Hugging Face repository";
 "Ricorda le frasi che accetto e riproponile" = "Remember the phrases I accept and offer them again";
@@ -261,7 +263,7 @@
 "Suggerimento: %@" = "Suggestion: %@";
 "Suggerisci in %@" = "Suggest in %@";
 "Suggerisci un'idea" = "Suggest an idea";
-"Suggeritore è aggiornato." = "Suggeritore is up to date.";
+"Type_w/Me è aggiornato." = "Type_w/Me is up to date.";
 "Sviluppato da %@" = "Developed by %@";
 "Sì, usali se c'entrano" = "Yes, use it when relevant";
 "Taglia" = "Cut";
@@ -277,7 +279,7 @@
 "Tono neutro, appunti sintetici." = "Neutral tone, concise notes.";
 "Torna all'elenco di partenza" = "Back to the default list";
 "Tre cose che decidi tu. Si cambiano quando vuoi." = "Three things you decide. You can change them any time.";
-"Tutto a posto: Suggeritore vede la tastiera." = "All set: Suggeritore can see the keyboard.";
+"Tutto a posto: Type_w/Me vede la tastiera." = "All set: Type_w/Me can see the keyboard.";
 "Tutto pronto" = "All set";
 "Ultimo controllo" = "Last check";
 "Ultimo errore del modello: %@" = "Last model error: %@";

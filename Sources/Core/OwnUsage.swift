@@ -1,4 +1,4 @@
-// Quanto pesa Suggeritore stessa: CPU (percento di un core, come Monitoraggio Attività) e memoria.
+// Quanto pesa Type_w/Me stessa: CPU (percento di un core, come Monitoraggio Attività) e memoria.
 // Una sola chiamata sul proprio processo: costa quasi nulla. Come in What's Going On.
 
 import Foundation

@@ -1,5 +1,5 @@
 // Riscrivi la selezione: scorciatoia (predefinita ⌃⌥R) sul testo selezionato in qualunque app. Un pannello piccolo
-// vicino alla selezione, che non attiva Suggeritore: più breve, più formale, più informale, correggi, o un'istruzione
+// vicino alla selezione, che non attiva Type_w/Me: più breve, più formale, più informale, correggi, o un'istruzione
 // scritta da te; anteprima; "Sostituisci" scrive al posto della selezione (via Accessibilità, altrimenti incollando).
 // Il modello è quello dei suggerimenti (Gemma o Apple Intelligence, Completer.activeEngine).
 

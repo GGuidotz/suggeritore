@@ -65,13 +65,13 @@ private struct GeneralSettings: View {
     var body: some View {
         Form {
             Section {
-                SuggeritoreStatusView(info: completer.statusInfo, labels: .localized)
+                TypeWithMeStatusView(info: completer.statusInfo, labels: .localized)
             }
 
             if let stats = cotypistStats {
                 Section {
                     Text(L("Cotypist ha contato %@ parole accettate in %d giorni.", Format.integer(stats.words), stats.days))
-                    Button(prefs.cotypistImported ? L("Già aggiunte al contatore") : L("Aggiungi al contatore di Suggeritore")) {
+                    Button(prefs.cotypistImported ? L("Già aggiunte al contatore") : L("Aggiungi al contatore di Type_w/Me")) {
                         prefs.acceptedWordsTotal += stats.words
                         prefs.cotypistImported = true
                         diag(.app, "cotypist stats imported")
@@ -98,7 +98,7 @@ private struct GeneralSettings: View {
                     ForEach(AppLanguage.allCases) { Text($0.title).tag($0) }
                 }
             } footer: {
-                Footnote(L("La lingua è quella dell'interfaccia di Suggeritore. I suggerimenti seguono la lingua in cui stai scrivendo."))
+                Footnote(L("La lingua è quella dell'interfaccia di Type_w/Me. I suggerimenti seguono la lingua in cui stai scrivendo."))
             }
 
             Section {
@@ -111,7 +111,7 @@ private struct GeneralSettings: View {
             } header: {
                 Text(L("Permessi"))
             } footer: {
-                Footnote(L("Niente esce dal Mac: i permessi servono solo a leggere il campo con il fuoco e a scriverci. Dopo averli concessi, se la voce nella barra resta chiara, riapri Suggeritore."))
+                Footnote(L("Niente esce dal Mac: i permessi servono solo a leggere il campo con il fuoco e a scriverci. Dopo averli concessi, se la voce nella barra resta chiara, riapri Type_w/Me."))
             }
             .onReceive(Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()) { _ in
                 accessibility = Permissions.accessibility
@@ -120,7 +120,7 @@ private struct GeneralSettings: View {
             }
 
             Section {
-                LabeledContent(L("Consumo di Suggeritore")) {
+                LabeledContent(L("Consumo di Type_w/Me")) {
                     Text(usage.map { L("%@ di CPU · %@", Format.percent($0.cpu), Format.bytes($0.memory)) } ?? "–")
                         .monospacedDigit()
                 }
@@ -135,10 +135,10 @@ private struct GeneralSettings: View {
     }
 }
 
-extension SuggeritoreStatusLabels {
+extension TypeWithMeStatusLabels {
     /// I testi della vista compatta nella lingua scelta per l'app.
-    static var localized: SuggeritoreStatusLabels {
-        var labels = SuggeritoreStatusLabels()
+    static var localized: TypeWithMeStatusLabels {
+        var labels = TypeWithMeStatusLabels()
         labels.engine = L("Motore")
         labels.today = L("Parole oggi")
         labels.total = L("Da sempre")
@@ -378,7 +378,7 @@ private struct AppsSettings: View {
             } header: {
                 Text(L("App escluse"))
             } footer: {
-                Footnote(L("Qui Suggeritore non legge e non scrive mai. Nei campi password e con l'input sicuro acceso non lo fa comunque, in nessuna app. Dal menu nella barra puoi spegnere l'app in cui ti trovi."))
+                Footnote(L("Qui Type_w/Me non legge e non scrive mai. Nei campi password e con l'input sicuro acceso non lo fa comunque, in nessuna app. Dal menu nella barra puoi spegnere l'app in cui ti trovi."))
             }
 
             AppInstructionsSection(prefs: prefs, running: running)
@@ -518,7 +518,7 @@ private struct UpdateStateText: View {
         case .idle: EmptyView()
         case .checking: ProgressView().controlSize(.small)
         case .upToDate:
-            Label(L("Suggeritore è aggiornato."), systemImage: "checkmark.circle.fill").foregroundStyle(Palette.calm)
+            Label(L("Type_w/Me è aggiornato."), systemImage: "checkmark.circle.fill").foregroundStyle(Palette.calm)
         case .available(let version):
             Label(L("Disponibile la versione %@", version), systemImage: "arrow.down.circle.fill").foregroundStyle(Color.accentColor)
         case .failed(let why):
@@ -534,7 +534,7 @@ private struct UpdateCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if case .available(let version) = updater.state {
-                Label(L("Disponibile Suggeritore %@", version), systemImage: "arrow.down.circle.fill")
+                Label(L("Disponibile Type_w/Me %@", version), systemImage: "arrow.down.circle.fill")
                     .font(.headline)
             }
             if !updater.news.isEmpty { ChangelogList(entries: updater.news) }
@@ -573,7 +573,7 @@ private struct FeedbackSettings: View {
                         .frame(width: 72, height: 72)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Suggeritore").font(.title2.weight(.semibold)).fontDesign(.rounded)
+                        Text(AppInfo.name).font(.title2.weight(.semibold)).fontDesign(.rounded)
                         Text(L("Versione %@", "\(SystemInfo.version) (\(SystemInfo.build))")).foregroundStyle(.secondary)
                         Text(L("Il seguito di quello che scrivi, in ogni app del Mac.")).foregroundStyle(.secondary)
                     }

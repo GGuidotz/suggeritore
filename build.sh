@@ -1,10 +1,10 @@
 #!/bin/zsh
-# Compila "Suggeritore.app" (universale arm64 + x86_64, macOS 26+) con gli strumenti a riga di comando: niente
+# Compila "TypeWithMe.app" (Type_w/Me: lo slash non può stare nei nomi di file) (universale arm64 + x86_64, macOS 26+) con gli strumenti a riga di comando: niente
 # progetto Xcode, come What's Going On e Nod.
-#   ./build.sh              build/Suggeritore.app
+#   ./build.sh              build/TypeWithMe.app
 #   ./build.sh --install    e la copia in /Applications (chiude la copia aperta) e la apre
-#   ./build.sh --dmg        e crea dist/Suggeritore-<versione>.dmg
-#   SUGGERITORE_ICON=classic ./build.sh …   usa l'icona classica anche se c'è Xcode
+#   ./build.sh --dmg        e crea dist/TypeWithMe-<versione>.dmg
+#   TYPEWITHME_ICON=classic ./build.sh …   usa l'icona classica anche se c'è Xcode
 # Firma: con l'identità locale di Nod (~/.nod-signing, ./make-signing-identity.sh in GGuidotz/nod) se c'è, così i
 # permessi Accessibilità e Monitoraggio input restano da un aggiornamento all'altro; altrimenti ad hoc (solo prove).
 set -euo pipefail
@@ -18,8 +18,8 @@ case "${1:-}" in
   *) echo "uso: ./build.sh [--install|--dmg]" >&2; exit 64 ;;
 esac
 
-NAME="Suggeritore"
-EXE=Suggeritore
+NAME="TypeWithMe"
+EXE=TypeWithMe
 VERSION=$(tr -d '[:space:]' < VERSION)
 BUILD_NUMBER=$(git rev-list --count HEAD 2>/dev/null || echo 1)
 COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -69,7 +69,7 @@ iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 # tools/icon-check la disegna come il Dock: se risulta vuota, o uguale all'icona generica, si resta sulla classica.
 ICON_TIER=classic
 ICON_CHECK=""
-if [ "${SUGGERITORE_ICON:-}" != classic ] && [ -d Resources/Icon/Suggeritore.icon ]; then
+if [ "${TYPEWITHME_ICON:-${SUGGERITORE_ICON:-}}" != classic ] && [ -d Resources/Icon/Suggeritore.icon ]; then
   if [ -z "${DEVELOPER_DIR:-}" ] && [ -d /Applications/Xcode.app/Contents/Developer ]; then
     export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer   # Xcode anche se è selezionato solo CLT
   fi
@@ -130,6 +130,7 @@ echo "Pronto: $APP ($VERSION, build $BUILD_NUMBER, commit $COMMIT, firma $SIGNIN
 case "$MODE" in
   install)
     /usr/bin/pkill -x "$EXE" 2>/dev/null || true
+    /usr/bin/pkill -x Suggeritore 2>/dev/null || true   # la copia con il nome di prima, se è aperta (l'app vecchia non si cancella)
     rm -rf "/Applications/$NAME.app"
     cp -R "$APP" "/Applications/$NAME.app"
     # Il Finder tiene in cache l'icona vecchia: registra di nuovo l'app.
@@ -143,9 +144,9 @@ case "$MODE" in
     STAGE=$(mktemp -d)
     cp -R "$APP" "$STAGE/$NAME.app"
     ln -s /Applications "$STAGE/Applications"
-    DMG="dist/Suggeritore-$VERSION.dmg"
+    DMG="dist/$NAME-$VERSION.dmg"
     rm -f "$DMG"
-    hdiutil create -quiet -volname "$NAME $VERSION" -srcfolder "$STAGE" -format UDZO "$DMG"
+    hdiutil create -quiet -volname "Type_w-Me $VERSION" -srcfolder "$STAGE" -format UDZO "$DMG"
     rm -rf "$STAGE"
     shasum -a 256 "$DMG"
     echo "DMG: $DMG" ;;

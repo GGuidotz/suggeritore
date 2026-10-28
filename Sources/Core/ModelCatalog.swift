@@ -1,4 +1,4 @@
-// I modelli che Suggeritore sa avviare con llama.cpp (repository Hugging Face con il file GGUF, scaricato al primo
+// I modelli che Type_w/Me sa avviare con llama.cpp (repository Hugging Face con il file GGUF, scaricato al primo
 // avvio nella cache di llama.cpp) o chiedere a Ollama (nome del modello). Tre Gemma 3 pronti, più quelli che aggiungi
 // tu dalle impostazioni. Solo Foundation.
 

@@ -1,13 +1,13 @@
-// La pagina di Suggeritore per l'isola di Cocaine: una vista compatta con lo stato, il motore e qualche numero.
-// Dipende solo da SwiftUI e da dati semplici (SuggeritoreStatusInfo), non dal Completer né dai colori dell'app, così
-// si copia così com'è in un'altra app. I testi arrivano già tradotti (SuggeritoreStatusLabels); i predefiniti sono in
+// La pagina di Type_w/Me per l'isola di Cocaine: una vista compatta con lo stato, il motore e qualche numero.
+// Dipende solo da SwiftUI e da dati semplici (TypeWithMeStatusInfo), non dal Completer né dai colori dell'app, così
+// si copia così com'è in un'altra app. I testi arrivano già tradotti (TypeWithMeStatusLabels); i predefiniti sono in
 // italiano. Il colore non è mai l'unico segnale: ogni stato ha anche il suo simbolo e la sua frase. Cifre tabellari.
-// In Suggeritore sta in cima a Impostazioni › Generale.
+// In Type_w/Me sta in cima a Impostazioni › Generale.
 
 import SwiftUI
 
 /// Quello che la vista mostra: tutto già pronto, niente logica.
-struct SuggeritoreStatusInfo: Equatable {
+struct TypeWithMeStatusInfo: Equatable {
     enum Tone: Equatable {
         /// Pronto; sta pensando o mostra un suggerimento; c'è qualcosa da sistemare; in pausa o escluso.
         case ok, busy, warning, off
@@ -30,8 +30,8 @@ struct SuggeritoreStatusInfo: Equatable {
 }
 
 /// I testi della vista, nella lingua di chi la usa.
-struct SuggeritoreStatusLabels {
-    var title = "Suggeritore"
+struct TypeWithMeStatusLabels {
+    var title = "Type_w/Me"
     var engine = "Motore"
     var today = "Parole oggi"
     var total = "Da sempre"
@@ -44,9 +44,9 @@ struct SuggeritoreStatusLabels {
     var noValue = "–"
 }
 
-struct SuggeritoreStatusView: View {
-    var info: SuggeritoreStatusInfo
-    var labels = SuggeritoreStatusLabels()
+struct TypeWithMeStatusView: View {
+    var info: TypeWithMeStatusInfo
+    var labels = TypeWithMeStatusLabels()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -136,3 +136,11 @@ struct SuggeritoreStatusView: View {
         }
     }
 }
+
+// Nomi di prima, per Cocaine finché non passa ai nuovi.
+@available(*, deprecated, renamed: "TypeWithMeStatusView")
+typealias SuggeritoreStatusView = TypeWithMeStatusView
+@available(*, deprecated, renamed: "TypeWithMeStatusInfo")
+typealias SuggeritoreStatusInfo = TypeWithMeStatusInfo
+@available(*, deprecated, renamed: "TypeWithMeStatusLabels")
+typealias SuggeritoreStatusLabels = TypeWithMeStatusLabels

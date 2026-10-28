@@ -40,7 +40,7 @@ final class WhatsNewWindowController: NSObject, NSWindowDelegate {
         let view = WhatsNewView(entries: entries) { [weak self] in self?.window?.performClose(nil) }
         let w = TranslucentWindow.make(view, size: WhatsNewView.size)
         w.delegate = self
-        w.title = L("Novità di Suggeritore")
+        w.title = L("Novità di Type_w/Me")
         window = w
         NSApp.activate()
         w.makeKeyAndOrderFront(nil)
@@ -129,7 +129,7 @@ struct WhatsNewView: View {
                 Text(L("Novità"))
                     .font(.callout.weight(.semibold))
                     .foregroundStyle(.secondary)
-                Text(verbatim: "Suggeritore \(entries.first?.version ?? "")")
+                Text(verbatim: "\(AppInfo.name) \(entries.first?.version ?? "")")
                     .font(.largeTitle.weight(.semibold))
                     .fontDesign(.rounded)
                 if let summary = entries.first?.summary, !summary.isEmpty {

@@ -1,6 +1,6 @@
 // Feedback, come in Nod e in Cocaine: segnalare un problema o proporre un'idea su GitHub (il canale preferito, pubblico),
 // oppure scrivere un'email con in fondo i dati che servono (versione, macOS, modello del Mac, lingua). Il report di
-// diagnostica si copia o si salva da allegare. Più il pannello Informazioni su Suggeritore.
+// diagnostica si copia o si salva da allegare. Più il pannello Informazioni su Type_w/Me.
 
 import AppKit
 import SwiftUI
@@ -8,9 +8,9 @@ import UniformTypeIdentifiers
 
 enum Developer {
     static let name = "gguidotz"
-    static let repo = "GGuidotz/suggeritore"
-    static let github = URL(string: "https://github.com/GGuidotz/suggeritore")!
-    static let issues = URL(string: "https://github.com/GGuidotz/suggeritore/issues")!
+    static let repo = AppInfo.repo
+    static let github = URL(string: "https://github.com/\(AppInfo.repo)")!
+    static let issues = URL(string: "https://github.com/\(AppInfo.repo)/issues")!
     static let email = "giulioguidotz@yahoo.com"
 }
 
@@ -36,7 +36,7 @@ enum Feedback {
         var c = URLComponents()
         c.scheme = "mailto"
         c.path = Developer.email
-        c.queryItems = [URLQueryItem(name: "subject", value: "Suggeritore \(SystemInfo.version) – " + L("Feedback")),
+        c.queryItems = [URLQueryItem(name: "subject", value: "\(AppInfo.name) \(SystemInfo.version) – " + L("Feedback")),
                         URLQueryItem(name: "body", value: "\n\n\n— \(SystemInfo.oneLine)")]
         if let url = c.url { NSWorkspace.shared.open(url) }
         diag(.feedback, "email composed")

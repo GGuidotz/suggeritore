@@ -42,7 +42,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             w.delegate = self
             window = w
         }
-        window?.title = L("Impostazioni di Suggeritore")   // per Mission Control e VoiceOver, anche dopo un cambio di lingua
+        window?.title = L("Impostazioni di Type_w/Me")   // per Mission Control e VoiceOver, anche dopo un cambio di lingua
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
     }

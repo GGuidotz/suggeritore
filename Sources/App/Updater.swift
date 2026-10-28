@@ -1,6 +1,6 @@
 // Aggiornamenti: all'avvio (dopo 30 s), ogni 6 ore e su richiesta legge VERSION e CHANGELOG.md dal ramo main di
-// GGuidotz/suggeritore. Se c'è una versione più nuova mostra le sue novità e il comando per aggiornare:
-//   installato con Homebrew: brew update && brew upgrade --cask suggeritore
+// GGuidotz/typewithme. Se c'è una versione più nuova mostra le sue novità e il comando per aggiornare:
+//   installato con Homebrew: brew update && brew upgrade --cask typewithme
 //   compilato dai sorgenti: cd '<cartella del clone>' && git pull && ./build.sh --install
 // "Aggiorna nel Terminale" apre il Terminale ed esegue il comando (Terminal.run; la prima volta macOS chiede il
 // permesso Automazione).
@@ -36,8 +36,8 @@ final class Updater: ObservableObject {
     @Published private(set) var news: [ChangelogEntry] = []
     @Published private(set) var terminalError: String?
 
-    static let versionURL = URL(string: "https://raw.githubusercontent.com/GGuidotz/suggeritore/main/VERSION")!
-    static let changelogURL = URL(string: "https://raw.githubusercontent.com/GGuidotz/suggeritore/main/CHANGELOG.md")!
+    static let versionURL = URL(string: "https://raw.githubusercontent.com/\(AppInfo.repo)/main/VERSION")!
+    static let changelogURL = URL(string: "https://raw.githubusercontent.com/\(AppInfo.repo)/main/CHANGELOG.md")!
 
     private let prefs: Preferences
     private var timer: Timer?
@@ -49,7 +49,7 @@ final class Updater: ObservableObject {
 
     static var channel: Channel {
         let fm = FileManager.default
-        return fm.fileExists(atPath: "/opt/homebrew/Caskroom/suggeritore") || fm.fileExists(atPath: "/usr/local/Caskroom/suggeritore")
+        return fm.fileExists(atPath: "/opt/homebrew/Caskroom/\(AppInfo.caskName)") || fm.fileExists(atPath: "/usr/local/Caskroom/\(AppInfo.caskName)")
             ? .homebrew : .source
     }
 
@@ -59,9 +59,9 @@ final class Updater: ObservableObject {
     var command: String {
         switch Self.channel {
         case .homebrew:
-            return "brew update && brew upgrade --cask suggeritore"
+            return "brew update && brew upgrade --cask \(AppInfo.caskName)"
         case .source:
-            let path = Self.sourcePath ?? "~/Developer/suggeritore"
+            let path = Self.sourcePath ?? "~/Developer/typewithme"
             return "cd '\(path.replacingOccurrences(of: "'", with: "'\\''"))' && git pull && ./build.sh --install"
         }
     }

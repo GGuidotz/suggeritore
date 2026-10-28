@@ -1,4 +1,4 @@
-// Lingue di Suggeritore: italiano e inglese. La chiave di ogni testo è la frase italiana, passata alla funzione L,
+// Lingue di Type_w/Me: italiano e inglese. La chiave di ogni testo è la frase italiana, passata alla funzione L,
 // anche con formato (per esempio "Passo %d di %d"). Le traduzioni stanno in Localization/en.lproj/Localizable.strings
 // (it.lproj è vuoto: la chiave è già il testo). Sistema segue macOS; le altre scelte cambiano subito l'interfaccia.
 // Stesso schema di Nod e di What's Going On. Solo Foundation.

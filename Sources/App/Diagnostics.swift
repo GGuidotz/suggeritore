@@ -69,9 +69,9 @@ enum SystemInfo {
     static var build: String { info["CFBundleVersion"] as? String ?? "?" }
     static var commit: String { info["SGRGitCommit"] as? String ?? "?" }
 
-    /// Una riga per le email e le segnalazioni: "Suggeritore 0.1.0 (12) · macOS 26.1 · Mac14,2 · it".
+    /// Una riga per le email e le segnalazioni: "Type_w/Me 0.1.0 (12) · macOS 26.1 · Mac14,2 · it".
     static var oneLine: String {
-        "Suggeritore \(version) (\(build)) · macOS \(macOS) · \(model) · \(Localization.effectiveCode)"
+        "\(AppInfo.name) \(version) (\(build)) · macOS \(macOS) · \(model) · \(Localization.effectiveCode)"
     }
 }
 
@@ -84,7 +84,7 @@ enum DiagnosticsReport {
         func yesNo(_ b: Bool) -> String { b ? "yes" : "no" }
 
         let prefs = model.prefs, completer = model.completer
-        out.append("# Suggeritore diagnostics")
+        out.append("# \(AppInfo.name) diagnostics")
         row("Generated", DiagnosticsLog.stamp(Date()))
 
         section("App")
@@ -179,6 +179,6 @@ enum DiagnosticsReport {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd-HHmm"
-        return "Suggeritore-diagnostics-\(f.string(from: Date())).txt"
+        return "\(AppInfo.fileName)-diagnostics-\(f.string(from: Date())).txt"
     }
 }

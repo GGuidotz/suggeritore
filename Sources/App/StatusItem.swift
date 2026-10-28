@@ -18,7 +18,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     init(model: AppModel) {
         self.model = model
         super.init()
-        item.autosaveName = "Suggeritore"
+        item.autosaveName = AppInfo.fileName
         item.button?.imagePosition = .imageOnly
         menu.delegate = self
         item.menu = menu
@@ -33,8 +33,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         guard status != drawn else { return }
         drawn = status
         item.button?.image = MenuBarIcon.image(for: status)
-        item.button?.toolTip = "Suggeritore · " + status.title
-        item.button?.setAccessibilityLabel("Suggeritore, " + status.title)
+        item.button?.toolTip = AppInfo.name + " · " + status.title
+        item.button?.setAccessibilityLabel(AppInfo.name + ", " + status.title)
     }
 
     // MARK: - Menu
@@ -84,7 +84,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(withTitle: L("Guida iniziale…"), action: #selector(openOnboarding), keyEquivalent: "").target = self
         menu.addItem(withTitle: L("Invia un feedback…"), action: #selector(openFeedback), keyEquivalent: "").target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: L("Esci da Suggeritore"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(withTitle: L("Esci da Type_w/Me"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
     }
 
     @objc private func togglePause() { model.completer.setEnabled(!model.prefs.enabled) }

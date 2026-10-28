@@ -20,7 +20,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
             w.delegate = self
             window = w
         }
-        window?.title = L("Benvenuto in Suggeritore")
+        window?.title = L("Benvenuto in Type_w/Me")
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
     }
@@ -97,7 +97,7 @@ struct OnboardingView: View {
                 .resizable()
                 .frame(width: 96, height: 96)
                 .accessibilityHidden(true)
-            Text(L("Benvenuto in Suggeritore"))
+            Text(L("Benvenuto in Type_w/Me"))
                 .font(.largeTitle.weight(.semibold))
                 .fontDesign(.rounded)
                 .multilineTextAlignment(.center)
@@ -117,7 +117,7 @@ struct OnboardingView: View {
         StepPage(symbol: "lock.open", title: L("Due permessi"),
                  text: L("Per vedere in che campo scrivi e appoggiarci il suggerimento, macOS chiede il permesso Accessibilità. Per vedere Tab ed Esc, su alcune versioni, anche Monitoraggio input.")) {
             PermissionRow(title: L("Accessibilità"), granted: accessibility,
-                          detail: L("Indispensabile: senza, Suggeritore non può fare niente."),
+                          detail: L("Indispensabile: senza, Type_w/Me non può fare niente."),
                           request: { Permissions.requestAccessibility() }, open: { Permissions.openAccessibilitySettings() })
                 .contentCard()
             PermissionRow(title: L("Monitoraggio input"), granted: inputMonitoring,
@@ -125,12 +125,12 @@ struct OnboardingView: View {
                           request: { Permissions.requestInputMonitoring() }, open: { Permissions.openInputMonitoringSettings() })
                 .contentCard()
             if accessibility, completer.monitor.isRunning {
-                Label(L("Tutto a posto: Suggeritore vede la tastiera."), systemImage: "checkmark.circle.fill")
+                Label(L("Tutto a posto: Type_w/Me vede la tastiera."), systemImage: "checkmark.circle.fill")
                     .foregroundStyle(Palette.calm)
             } else if accessibility {
-                Footnote(L("Permesso concesso ma macOS non consegna ancora i tasti: chiudi e riapri Suggeritore."))
+                Footnote(L("Permesso concesso ma macOS non consegna ancora i tasti: chiudi e riapri Type_w/Me."))
             }
-            Footnote(L("In Impostazioni di Sistema › Privacy e sicurezza trovi Suggeritore nell'elenco: accendi l'interruttore. Niente esce dal Mac."))
+            Footnote(L("In Impostazioni di Sistema › Privacy e sicurezza trovi Type_w/Me nell'elenco: accendi l'interruttore. Niente esce dal Mac."))
         }
     }
 
@@ -201,7 +201,7 @@ struct OnboardingView: View {
             if !completer.monitor.isRunning {
                 Footnote(L("Manca il permesso Accessibilità: torna indietro di quattro passi per concederlo."))
             }
-            Tip(symbol: "menubar.rectangle", text: L("Nella barra dei menu trovi lo stato, la pausa e \"Suggerisci in questa app\" per spegnere Suggeritore dove non lo vuoi."))
+            Tip(symbol: "menubar.rectangle", text: L("Nella barra dei menu trovi lo stato, la pausa e \"Suggerisci in questa app\" per spegnere Type_w/Me dove non lo vuoi."))
             Tip(symbol: "lock", text: L("Nei campi password e nelle app con input sicuro non suggerisce mai. Gestori di password e Terminale sono esclusi in partenza."))
             Toggle(L("Apri all'accesso"), isOn: Binding(
                 get: { LaunchAtLogin.isEnabled },

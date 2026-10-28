@@ -1,8 +1,8 @@
-# Suggeritore
+# Type_w/Me
 
 Il seguito di quello che scrivi, in ogni app del Mac. [English](README.en.md)
 
-Suggeritore vive nella barra dei menu di macOS. Mentre scrivi in un campo di testo, in qualunque app, dopo una breve
+Type_w/Me vive nella barra dei menu di macOS. Mentre scrivi in un campo di testo, in qualunque app, dopo una breve
 pausa compare in grigio il seguito proposto: Tab lo accetta una parola alla volta, Maiusc-Tab tutto, Esc lo scarta; se
 continui a scrivere sparisce da solo. Il modello gira sul Mac (Gemma 3 con llama.cpp, oppure Apple Intelligence):
 niente dati che escono, niente account.
@@ -20,7 +20,7 @@ prima lingua.
   del modello di Apple. Al primo uso scarica il modello (circa 0,8 GB); ci sono anche il 4B e il 12B, e puoi
   aggiungere altri modelli GGUF da Hugging Face. Se Ollama è aperto e ha già il modello, si usa quello.
 - **Apple Intelligence.** Già sul Mac, senza installare niente, ma più debole. Con "Automatico" (il predefinito)
-  Suggeritore usa Gemma quando c'è e Apple Intelligence altrimenti; senza nessuno dei due restano regole e memoria.
+  Type_w/Me usa Gemma quando c'è e Apple Intelligence altrimenti; senza nessuno dei due restano regole e memoria.
 - **Il seguito appare mentre arriva.** Il testo grigio compare con le prime parole e si completa man mano.
 - **Istruzioni tue.** Una frase che vale per tutti i suggerimenti (tono, stile) e, se vuoi, una per app: Mail
   formale, Messaggi da chat, Note sintetico sono i profili consigliati, da accettare con un pulsante.
@@ -35,7 +35,7 @@ prima lingua.
 - **Completamento a metà riga** (sperimentale): con testo dopo il cursore, il seguito si raccorda a ciò che segue.
 - **Appunti come contesto**, se lo scegli: il modello vede l'ultima cosa copiata e la usa se c'entra.
 - **App escluse.** Mai nei campi password e con l'input sicuro acceso; gestori di password e Terminale esclusi in
-  partenza; dal menu nella barra spegni Suggeritore nell'app in cui ti trovi.
+  partenza; dal menu nella barra spegni Type_w/Me nell'app in cui ti trovi.
 
 ## Come funziona
 
@@ -45,7 +45,7 @@ trasparente appoggiato al cursore. A tastiera ferma l'app non fa nulla: il model
 scrivi e si ferma appena riprendi. Quanto pesa lo vedi in Impostazioni › Generale, insieme a parole accettate e tempo
 medio di risposta.
 
-Gemma gira in `llama-server` (llama.cpp), un processo che Suggeritore avvia alla prima richiesta, solo su 127.0.0.1 e
+Gemma gira in `llama-server` (llama.cpp), un processo che Type_w/Me avvia alla prima richiesta, solo su 127.0.0.1 e
 su una porta libera: il testo non va mai in rete. La prima volta llama.cpp scarica il modello da Hugging Face nella sua
 cache (`~/Library/Caches/llama.cpp`); dopo qualche minuto senza richieste (10, si cambia) il server si spegne, e si
 chiude con l'app. Ollama, se è aperto, espone lo stesso endpoint (`/v1/chat/completions`) e si usa allo stesso modo.
@@ -54,19 +54,19 @@ Mentre Gemma si avvia risponde Apple Intelligence, se c'è.
 ## Installazione
 
 ```sh
-brew install --cask gguidotz/tap/suggeritore
+brew install --cask gguidotz/tap/typewithme
 ```
 
 Homebrew scarica il DMG dalla release, copia l'app in Applicazioni e toglie la quarantena (l'app non è notarizzata),
-quindi niente "Apri comunque". Aggiornare: `brew upgrade --cask suggeritore`. Disinstallare:
-`brew uninstall --cask suggeritore` (`--zap` cancella anche preferenze e memoria delle frasi).
+quindi niente "Apri comunque". Aggiornare: `brew upgrade --cask typewithme`. Disinstallare:
+`brew uninstall --cask typewithme` (`--zap` cancella anche preferenze e memoria delle frasi).
 
 Oppure compila dal codice: servono macOS 26 e gli strumenti a riga di comando (`xcode-select --install`); con Xcode
 installato si compila anche l'icona Liquid Glass, se c'è.
 
 ```sh
-git clone https://github.com/GGuidotz/suggeritore.git
-cd suggeritore
+git clone https://github.com/GGuidotz/typewithme.git
+cd typewithme
 ./build.sh --install
 ```
 
@@ -120,8 +120,8 @@ GitHub con il DMG e aggiornamento del cask nel tap).
 
 ## Autore
 
-Sviluppato da **gguidotz**: [github.com/GGuidotz/suggeritore](https://github.com/GGuidotz/suggeritore) ·
-giulioguidotz@yahoo.com. Per segnalazioni e idee, meglio le [issue](https://github.com/GGuidotz/suggeritore/issues).
+Sviluppato da **gguidotz**: [github.com/GGuidotz/typewithme](https://github.com/GGuidotz/typewithme) ·
+giulioguidotz@yahoo.com. Per segnalazioni e idee, meglio le [issue](https://github.com/GGuidotz/typewithme/issues).
 
 ## Licenza
 
