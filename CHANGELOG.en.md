@@ -3,6 +3,22 @@
 English notes, same format as CHANGELOG.md (the Italian one is the reference). The app uses these when its language
 is English; versions missing here fall back to the Italian notes.
 
+## 0.4.0 · 2026-10-29
+
+Longer, more sensible suggestions with the Cotypist model.
+
+### New
+- **Learns from you.** A personal model, built on the Mac from the encrypted typing history, knows the words you usually write after the previous one or two. Before each suggestion it is compared with Gemma's most likely words: if one of yours wins, the suggestion starts there. "Word choice" in Settings › Personalization sets its weight; it learns from every new text.
+- **Context like a real document.** With Gemma base the context is no longer a header of instructions: in Mail the subject and the message you are replying to, quoted with "> "; in chats the last messages, one per line. Only written text, no menus or buttons, and it stays fixed while you type in the same field.
+
+### Improvements
+- **Better length.** A suggestion keeps going while the average per-token probability stays high, instead of multiplying word probabilities: with Italian words split into several pieces it almost always stopped after the first word.
+- **Clean prompt for base models.** Gemma base no longer gets English instructions, the clipboard or whole past texts in front of it, which confused it. The prompt only grows at the end and stays in the cache, so answers are faster.
+- **No repetition penalty.** It pushed the model away from common words and made suggestions sound unnatural.
+- **More apps.** Chrome and Electron apps (Slack, Discord, Notion, VS Code, Obsidian) only build their accessibility tree when someone asks: Type_w/Me now asks when they come to the front, so the caret and text can be read there too. If the system-wide query fails, the field is looked up in the frontmost app.
+- **No HTML tags.** The model sometimes went on with `<strong>`, `</p>` or `**`: the suggestion now stops there, unless you are writing HTML or markdown.
+- **Per-app diagnostics.** The report shows, app by app, how many suggestions appeared and why none did elsewhere (no field, no text, text after the cursor, no caret, model unsure), and how model answers stop. Counts only.
+
 ## 0.3.0 · 2026-10-28
 
 Suggeritore becomes Type_w/Me: faster suggestions, context from the screen, an encrypted typing history that learns your words, and llama.cpp built into the app. Everything stays on the Mac.

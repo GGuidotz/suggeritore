@@ -3,6 +3,22 @@
 Formato: `## <versione> · <data>`, poi `### Novità`, `### Miglioramenti`, `### Correzioni`, una riga `- ` per
 cambiamento. L'app mostra la sezione della sua versione in Impostazioni › Aggiornamenti (Sources/App/Changelog.swift).
 
+## 0.4.0 · 2026-10-29
+
+Suggerimenti più lunghi e sensati con il modello di Cotypist.
+
+### Novità
+- **Impara da te.** Un modello personale, costruito sul Mac dalla cronologia di scrittura cifrata, conosce le parole che scrivi di solito dopo le una o due precedenti. Prima di ogni suggerimento si confronta con le parole più probabili per Gemma: se una tua vince, il seguito parte da lì. Il peso lo decide "Scelta delle parole" in Impostazioni › Personalizzazione; impara a ogni testo nuovo.
+- **Contesto come in un documento vero.** Con Gemma base il contesto non è più un'intestazione di istruzioni: in Mail l'oggetto e il messaggio a cui rispondi, citato con "> "; in chat gli ultimi messaggi, una riga ciascuno. Solo righe di testo scritto, niente menu o pulsanti, e resta fermo mentre scrivi nello stesso campo.
+
+### Miglioramenti
+- **Lunghezza decisa meglio.** Il suggerimento va avanti finché la probabilità media per token resta alta, invece di moltiplicare le probabilità delle parole: con le parole italiane spezzate in più pezzi ci si fermava quasi sempre alla prima.
+- **Prompt pulito per i modelli base.** Gemma base non riceve più istruzioni in inglese, appunti o testi tuoi interi davanti, che lo confondevano. Il prompt cresce solo in coda e resta nella cache, quindi le risposte sono più rapide.
+- **Niente penalità sulle ripetizioni.** Spingeva il modello lontano da "di", "che", "la" e rendeva il seguito innaturale.
+- **Più app.** Chrome e le app Electron (Slack, Discord, Notion, VS Code, Obsidian) accendono il loro albero Accessibilità solo se qualcuno lo chiede: Type_w/Me ora lo chiede quando passano in primo piano, così il cursore e il testo si leggono anche lì. Se la domanda a tutto il sistema non risponde, il campo si cerca nell'app in primo piano.
+- **Niente tag HTML.** Il modello a volte continuava con `<strong>`, `</p>` o `**`: ora il suggerimento si ferma lì, a meno che tu non stia scrivendo HTML o markdown.
+- **Diagnostica per app.** Il report dice, app per app, quanti suggerimenti sono comparsi e perché altrove no (niente campo, niente testo, testo dopo il cursore, niente cursore, modello incerto), e come si fermano le risposte del modello. Solo conteggi.
+
 ## 0.3.0 · 2026-10-28
 
 Suggeritore diventa Type_w/Me: suggerimenti più rapidi, contesto dallo schermo, una cronologia di scrittura cifrata che impara le tue parole, e llama.cpp già dentro l'app. Tutto resta sul Mac.

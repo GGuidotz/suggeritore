@@ -31,6 +31,14 @@ final class Completer: ObservableObject {
         var shown = 0, acceptedWords = 0, acceptedAll = 0, dismissed = 0, memoryHits = 0, corrections = 0, modelFailures = 0
         /// Suggerimenti di cui hai preso almeno una parola, e abbreviazioni espanse.
         var acceptedSuggestions = 0, expansions = 0
+        /// Per app (bundle id → evento → volte): i suggerimenti mostrati e i motivi per cui non è comparso niente.
+        /// Solo conteggi.
+        var perApp: [String: [String: Int]] = [:]
+        /// Come sono finite le risposte di un modello base (motivo → volte) e quante parole hanno tenuto in tutto.
+        var stops: [String: Int] = [:]
+        var stoppedAnswers = 0, stoppedWords = 0
+        /// Seguiti partiti da una parola del modello personale.
+        var personalPicks = 0
     }
 
     @Published private(set) var status: Status = .off
@@ -64,7 +72,10 @@ final class Completer: ObservableObject {
     let screen = ScreenContext()
     let windowText = WindowText()
     /// Il contesto della finestra fermo per campo: cambia di rado, così il prompt resta nella cache di llama.cpp.
-    private var frozenContext: (field: String, title: String?, text: String?, date: Date)?
+    private var frozenContext: (field: String, title: String?, text: String?, quoted: String?, date: Date)?
+    /// Il modello personale (Sources/Core/PersonalModel.swift), costruito dalla cronologia di scrittura e tenuto al passo.
+    private var personal = PersonalModel()
+    private var personalLearned = Set<UUID>()
     let history = TypingHistory()
     /// Il campo in cui si sta scrivendo (per la cronologia) e i tuoi testi scelti per lui: restano gli stessi finché
     /// resti nel campo, così l'inizio del prompt non cambia e resta nella cache.
@@ -309,6 +320,10 @@ final class Completer: ObservableObject {
 
     private func appChanged() {
         frontApp = FocusReader.frontmostApp()
+        // Chrome ed Electron: l'albero Accessibilità del contenuto web si accende solo se lo si chiede.
+        if prefs.enabled, Permissions.accessibility, let app = NSWorkspace.shared.frontmostApplication {
+            WebAccessibility.prime(app)
+        }
         screen.invalidate()
         windowText.invalidate()
         frozenContext = nil
@@ -406,13 +421,33 @@ final class Completer: ObservableObject {
         }
     }
 
+    /// Il primo carattere visibile: i campi web mettono dopo il cursore segni invisibili (U+FFFC per gli oggetti
+    /// incorporati, spazi a larghezza zero) che non sono testo dopo il cursore. nil se non ce n'è.
+    private static func firstVisible(_ text: String) -> Character? {
+        let invisible: Set<Unicode.Scalar> = ["\u{FFFC}", "\u{200B}", "\u{200C}", "\u{200D}", "\u{2060}", "\u{FEFF}"]
+        return text.first { ch in
+            !ch.isWhitespace && !ch.isNewline && !ch.unicodeScalars.allSatisfy { invisible.contains($0) }
+        }
+    }
+
+    /// Conta un evento per app (un suggerimento mostrato, una rinuncia): in diagnostica si vede dove e perché non
+    /// compare niente.
+    private func tally(_ reason: String, app bundleID: String?) {
+        let app = (bundleID?.isEmpty == false ? bundleID : FocusReader.frontmostApp()?.bundleID) ?? "unknown"
+        stats.perApp[app, default: [:]][reason, default: 0] += 1
+    }
+
     private func produceSuggestion() {
         guard prefs.enabled, monitor.isRunning, !KeyMonitor.secureInputActive else { return }
         let readBegan = Date()
-        guard let field = FocusReader.focusedField(), !field.isSecure, field.selection.length == 0 else { return }
+        guard let field = FocusReader.focusedField() else { tally("no field", app: nil); return }
+        guard !field.isSecure, field.selection.length == 0 else { return }
         guard !prefs.isExcluded(field.bundleID) else { return }
         if ignoreOwnProcess, field.pid == getpid() { return }
-        guard let before = FocusReader.text(before: field, max: TextContext.maxBefore) else { return }
+        guard let before = FocusReader.text(before: field, max: TextContext.maxBefore) else {
+            tally("no text", app: field.bundleID)
+            return
+        }
         // Il testo appena accettato non è ancora tutto nel campo: si riprova tra poco (al più mezzo secondo).
         if let tail = expectedTail {
             if !before.hasSuffix(tail), expectedRetries < 10 {
@@ -429,7 +464,11 @@ final class Completer: ObservableObject {
         var after = ""
         if prefs.midLine {
             after = FocusReader.text(after: field, max: TextContext.maxAfter) ?? ""
-        } else if let next = FocusReader.text(after: field, max: 2), !next.trimmingCharacters(in: .whitespaces).isEmpty {
+        } else if let next = FocusReader.text(after: field, max: 2), let visible = Self.firstVisible(next) {
+            // Solo il codice dei segni che non sono lettere o cifre (un segnaposto invisibile, una parentesi): mai testo.
+            let detail = visible.isLetter || visible.isNumber ? ""
+                : " (" + visible.unicodeScalars.map { String(format: "U+%04X", $0.value) }.joined(separator: " ") + ")"
+            tally("text after caret" + detail, app: field.bundleID)
             return   // c'è testo dopo il cursore e il completamento a metà riga è spento
         }
         let context = TextContext(before: before, after: after, appName: field.appName, bundleID: field.bundleID)
@@ -440,6 +479,7 @@ final class Completer: ObservableObject {
         let language = LanguageGuess.code(for: before)
         // La parola a metà sembra già sbagliata: allungarla non aiuta.
         if prefs.hideOnTypo, !context.partialWord.isEmpty, SpellGuard.looksMistyped(context.partialWord, language: language) {
+            tally("typo", app: field.bundleID)
             return
         }
         self.field = field
@@ -456,15 +496,23 @@ final class Completer: ObservableObject {
         // Gemma: inizio del testo ancorato, così llama.cpp riusa il prompt già elaborato (Models.swift, anchored).
         let limited = engine.kind == .gemma ? context.anchored(caret: field.caret, max: engine.contextLimit)
                                             : context.limited(to: engine.contextLimit)
+        // Un modello base continua un documento (Prompting.rawPrompt): il contesto della finestra entra come mail citata
+        // o come chat; appunti e testi tuoi interi no, al loro posto il modello personale.
+        let baseModel = (engine as? LlamaEngine)?.rawCompletion == true
         let window = windowContext(field: field, before: limited.before)
         var draft = CompletionRequest(context: limited, length: prefs.length,
                                       language: language, instructions: prefs.instructions,
                                       appInstructions: prefs.instruction(forApp: field.bundleID),
-                                      clipboard: clipboardIfAllowed(),
+                                      clipboard: baseModel ? nil : clipboardIfAllowed(),
                                       screen: window.text,
-                                      ownWriting: ownWritingFor(field: field, before: before),
+                                      ownWriting: baseModel ? [] : ownWritingFor(field: field, before: before),
                                       wordLimit: prefs.maxWords)
         draft.windowTitle = window.title
+        if baseModel {
+            draft.quoted = window.quoted
+            draft.personal = personalCandidates(before: before)
+            draft.personalWeight = Self.personalWeight(prefs.wordChoice)
+        }
         let request = draft
         let source: SuggestionSource = engine.kind == .gemma ? .gemma : .apple
         let started = Date()
@@ -488,6 +536,13 @@ final class Completer: ObservableObject {
                 self.recordResponseTime(elapsed)
                 self.recordLatency(Latency(readMs: readMs, firstMs: self.firstPieceMs ?? elapsed * 1000, totalMs: elapsed * 1000,
                                            timings: (engine as? LlamaEngine)?.lastTimings))
+                if let stop = (engine as? LlamaEngine)?.lastStop {
+                    self.stats.stops[stop.reason, default: 0] += 1
+                    self.stats.stoppedAnswers += 1
+                    self.stats.stoppedWords += stop.words
+                    if stop.personal { self.stats.personalPicks += 1 }
+                    if stop.words == 0 { self.tally("model unsure", app: field.bundleID) }
+                }
                 self.finishStream(raw, request: request, field: field, context: context, source: source)
             case .failure(let error):
                 self.stats.modelFailures += 1
@@ -612,13 +667,14 @@ final class Completer: ObservableObject {
     /// Il contesto della finestra in cui scrivi: titolo e testo letti con Accessibilità (Contesto dall'app) e, se
     /// quello è poco, il testo riconosciuto sullo schermo. Resta fermo per lo stesso campo fino a 45 secondi: un
     /// prompt che cambia a ogni richiesta andrebbe rielaborato da capo.
-    private func windowContext(field: FocusedField, before: String) -> (title: String?, text: String?) {
+    private func windowContext(field: FocusedField, before: String) -> (title: String?, text: String?, quoted: String?) {
         let key = Self.key(for: field)
-        if let f = frozenContext, f.field == key, f.text != nil, Date().timeIntervalSince(f.date) < 45 {
-            return (f.title, f.text)
+        if let f = frozenContext, f.field == key, f.text != nil || f.quoted != nil, Date().timeIntervalSince(f.date) < 45 {
+            return (f.title, f.text, f.quoted)
         }
         var title: String?
         var text: String?
+        var quoted: String?
         if prefs.appContext, let snapshot = windowText.context(for: field) {
             title = snapshot.title
             text = Self.withoutTyped(snapshot.text, before: before)
@@ -626,8 +682,44 @@ final class Completer: ObservableObject {
         if (text?.count ?? 0) < 200, let seen = screenIfAllowed(pid: field.pid, before: before), seen.count > (text?.count ?? 0) {
             text = seen
         }
-        frozenContext = (key, title, text, Date())
-        return (title, text)
+        // In una risposta di Mail il messaggio a cui rispondi sta nello stesso campo, sotto il cursore.
+        if prefs.appContext, Prompting.appKind(field.bundleID) == .mail,
+           let below = FocusReader.text(after: field, max: 1500, wholeLines: true) {
+            let trimmed = below.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { quoted = trimmed }
+        }
+        frozenContext = (key, title, text, quoted, Date())
+        return (title, text, quoted)
+    }
+
+    /// Le parole che di solito scrivi in questo punto, secondo il modello personale. Il modello impara dalle voci nuove
+    /// della cronologia (e riparte da capo se ne hai cancellate). Vuoto con "Scelta delle parole" spenta.
+    private func personalCandidates(before: String) -> [PersonalCandidate] {
+        guard prefs.wordChoice > 0, prefs.recordHistory else { return [] }
+        if history.entries.count < personalLearned.count {
+            personal = PersonalModel()
+            personalLearned = []
+        }
+        if history.entries.count != personalLearned.count {
+            for entry in history.entries where !personalLearned.contains(entry.id) {
+                personal.learn(entry.text)
+                personalLearned.insert(entry.id)
+            }
+        }
+        return personal.candidates(before: before)
+    }
+
+    /// Il modello personale in numeri, per la diagnostica.
+    var personalSummary: String { "\(personal.texts) texts, \(personal.vocabulary) words" }
+
+    /// Quanto contano le tue parole rispetto a quelle di Gemma: Leggera, Media, Forte.
+    static func personalWeight(_ wordChoice: Int) -> Double {
+        switch wordChoice {
+        case ..<1: 0
+        case 1: 0.2
+        case 2: 0.35
+        default: 0.5
+        }
     }
 
     /// Il testo della finestra in primo piano riconosciuto sullo schermo. nil se spento, senza permesso o a batteria
@@ -667,11 +759,16 @@ final class Completer: ObservableObject {
         streaming = false
         cutShort = false
         stats.shown += 1
-        let caret = FocusReader.caretBounds(field, afterNewline: context.before.last?.isNewline == true)
+        let info = FocusReader.caretInfo(field, afterNewline: context.before.last?.isNewline == true)
+        let caret = info.rect
+        tally(caret == nil ? "no caret (\(info.source))" : "shown", app: field.bundleID)
         ghostCaret = caret
         ghostFont = caret == nil ? nil : FocusReader.font(field)
         ghostLineStart = caret == nil ? nil : FocusReader.lineStartX(field, before: context.before)
         overlay.show(s.text, font: ghostFont, caret: caret, fieldFrame: field.frame, lineStartX: ghostLineStart)
+        // Il cursore c'era ma il testo grigio non si vede (niente spazio prima del bordo): si conta, per capire dove.
+        if caret != nil, !overlay.isVisible { tally("ghost hidden (\(info.source))", app: field.bundleID) }
+        if caret != nil, overlay.isVisible { tally("caret \(info.source)", app: field.bundleID) }
         refreshStatus()
     }
 
