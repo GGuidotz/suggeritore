@@ -114,6 +114,7 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
         let (bytes, response) = try await LocalHTTP.session.bytes(for: urlRequest)
         try Self.check(response)
         var stop = ConfidenceStop(length: request.length, maxWords: request.maxWords)
+        let markupAllowed = request.context.before.contains("<")
         var natural = false
         for try await line in bytes.lines {
             guard line.hasPrefix("data:") else { continue }
@@ -129,6 +130,11 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
                 if !stop.confident.isEmpty { partial(stop.confident) }
                 // Finita la riga (dopo un eventuale a capo iniziale), il seguito è completo.
                 if AppleEngine.endsLine(stop.text) { natural = true; break }
+                // Un tag HTML: il resto sarebbe pagina web, non testo tuo (Prompting.cuttingMarkup lo toglie).
+                if !markupAllowed, stop.text.range(of: "</?[A-Za-z]", options: .regularExpression) != nil {
+                    natural = true
+                    break
+                }
             }
             if (chunk["stop"] as? Bool) == true {
                 natural = (chunk["stop_type"] as? String) != "limit"

@@ -127,6 +127,9 @@ enum Prompting {
             }
         }
         text = collapseSpaces(text)
+        // Un modello base ha letto molte pagine web: a volte continua con tag HTML o grassetto markdown. Il seguito
+        // finisce lì, a meno che tu non stia scrivendo proprio HTML o markdown.
+        text = cuttingMarkup(text, before: r.context.before)
 
         // Se ripete la fine del testo già scritto, via la parte ripetuta.
         text = removingOverlap(text, before: r.context.before)
@@ -208,6 +211,20 @@ enum Prompting {
         case .medium: "short: one sentence, at most \(words) words"
         case .long: "at most two sentences, at most \(words) words"
         }
+    }
+
+    /// Il seguito fino al primo tag (`<strong>`, `</p>`, `<br/>`) o al primo `**`, se il testo prima del cursore non
+    /// ne contiene: "e poi <strong>domani" → "e poi".
+    static func cuttingMarkup(_ text: String, before: String) -> String {
+        var cut = text.endIndex
+        if !before.contains("<"), let tag = text.range(of: "</?[A-Za-z][A-Za-z0-9]*", options: .regularExpression) {
+            cut = tag.lowerBound
+        }
+        if !before.contains("**"), let bold = text.range(of: "**"), bold.lowerBound < cut {
+            cut = bold.lowerBound
+        }
+        guard cut < text.endIndex else { return text }
+        return String(text[..<cut]).replacingOccurrences(of: "\\s+$", with: "", options: .regularExpression)
     }
 
     static func collapseSpaces(_ text: String) -> String {

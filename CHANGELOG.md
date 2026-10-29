@@ -12,6 +12,7 @@ Suggerimenti più lunghi e sensati con il modello di Cotypist.
 - **Prompt pulito per i modelli base.** Gemma base riceve solo il testo prima del cursore: niente schermo, appunti, istruzioni o testi tuoi davanti, che lo confondevano. Il prompt cresce solo in coda e resta nella cache, quindi le risposte sono più rapide. Il contesto dallo schermo e dall'app resta per Apple Intelligence e per i modelli istruiti.
 - **Niente penalità sulle ripetizioni.** Spingeva il modello lontano da "di", "che", "la" e rendeva il seguito innaturale.
 - **Più app.** Chrome e le app Electron (Slack, Discord, Notion, VS Code, Obsidian) accendono il loro albero Accessibilità solo se qualcuno lo chiede: Type_w/Me ora lo chiede quando passano in primo piano, così il cursore e il testo si leggono anche lì. Se la domanda a tutto il sistema non risponde, il campo si cerca nell'app in primo piano.
+- **Niente tag HTML.** Il modello a volte continuava con `<strong>`, `</p>` o `**`: ora il suggerimento si ferma lì, a meno che tu non stia scrivendo HTML o markdown.
 - **Diagnostica per app.** Il report dice, app per app, quanti suggerimenti sono comparsi e perché altrove no (niente campo, niente testo, testo dopo il cursore, niente cursore, modello incerto), e come si fermano le risposte del modello. Solo conteggi.
 
 ## 0.3.0 · 2026-10-28
