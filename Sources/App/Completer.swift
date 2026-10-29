@@ -416,6 +416,15 @@ final class Completer: ObservableObject {
         }
     }
 
+    /// Il primo carattere visibile: i campi web mettono dopo il cursore segni invisibili (U+FFFC per gli oggetti
+    /// incorporati, spazi a larghezza zero) che non sono testo dopo il cursore. nil se non ce n'è.
+    private static func firstVisible(_ text: String) -> Character? {
+        let invisible: Set<Unicode.Scalar> = ["\u{FFFC}", "\u{200B}", "\u{200C}", "\u{200D}", "\u{2060}", "\u{FEFF}"]
+        return text.first { ch in
+            !ch.isWhitespace && !ch.isNewline && !ch.unicodeScalars.allSatisfy { invisible.contains($0) }
+        }
+    }
+
     /// Conta un evento per app (un suggerimento mostrato, una rinuncia): in diagnostica si vede dove e perché non
     /// compare niente.
     private func tally(_ reason: String, app bundleID: String?) {
@@ -450,8 +459,11 @@ final class Completer: ObservableObject {
         var after = ""
         if prefs.midLine {
             after = FocusReader.text(after: field, max: TextContext.maxAfter) ?? ""
-        } else if let next = FocusReader.text(after: field, max: 2), !next.trimmingCharacters(in: .whitespaces).isEmpty {
-            tally("text after caret", app: field.bundleID)
+        } else if let next = FocusReader.text(after: field, max: 2), let visible = Self.firstVisible(next) {
+            // Solo il codice dei segni che non sono lettere o cifre (un segnaposto invisibile, una parentesi): mai testo.
+            let detail = visible.isLetter || visible.isNumber ? ""
+                : " (" + visible.unicodeScalars.map { String(format: "U+%04X", $0.value) }.joined(separator: " ") + ")"
+            tally("text after caret" + detail, app: field.bundleID)
             return   // c'è testo dopo il cursore e il completamento a metà riga è spento
         }
         let context = TextContext(before: before, after: after, appName: field.appName, bundleID: field.bundleID)
