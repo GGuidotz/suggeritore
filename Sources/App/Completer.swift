@@ -711,12 +711,16 @@ final class Completer: ObservableObject {
         streaming = false
         cutShort = false
         stats.shown += 1
-        let caret = FocusReader.caretBounds(field, afterNewline: context.before.last?.isNewline == true)
-        tally(caret == nil ? "no caret" : "shown", app: field.bundleID)
+        let info = FocusReader.caretInfo(field, afterNewline: context.before.last?.isNewline == true)
+        let caret = info.rect
+        tally(caret == nil ? "no caret (\(info.source))" : "shown", app: field.bundleID)
         ghostCaret = caret
         ghostFont = caret == nil ? nil : FocusReader.font(field)
         ghostLineStart = caret == nil ? nil : FocusReader.lineStartX(field, before: context.before)
         overlay.show(s.text, font: ghostFont, caret: caret, fieldFrame: field.frame, lineStartX: ghostLineStart)
+        // Il cursore c'era ma il testo grigio non si vede (niente spazio prima del bordo): si conta, per capire dove.
+        if caret != nil, !overlay.isVisible { tally("ghost hidden (\(info.source))", app: field.bundleID) }
+        if caret != nil, overlay.isVisible { tally("caret \(info.source)", app: field.bundleID) }
         refreshStatus()
     }
 

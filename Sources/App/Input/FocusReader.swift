@@ -105,16 +105,32 @@ enum FocusReader {
 
     /// Il rettangolo del cursore (larghezza zero, altezza della riga), coordinate AX. nil se l'app non lo dice.
     static func caretBounds(_ field: FocusedField, afterNewline: Bool) -> CGRect? {
+        caretInfo(field, afterNewline: afterNewline).rect
+    }
+
+    /// Il rettangolo del cursore e da dove viene (per la diagnostica: "range", "marker", "outside", "none").
+    /// Chrome e Safari a volte danno rettangoli plausibili ma sbagliati (all'origine dello schermo, o di un altro
+    /// elemento): si tiene solo un rettangolo dentro il campo, se il campo dice dov'è.
+    static func caretInfo(_ field: FocusedField, afterNewline: Bool) -> (rect: CGRect?, source: String) {
         let caret = field.caret
-        func plausible(_ r: CGRect) -> Bool { r.height > 4 && r.height < 300 && (r.width >= 0) && r != .zero }
+        let area = field.frame.flatMap { $0.width > 4 && $0.height > 4 ? $0.insetBy(dx: -24, dy: -24) : nil }
+        var outside = false
+        func plausible(_ r: CGRect) -> Bool {
+            guard r.height > 4, r.height < 300, r.width >= 0, r != .zero, !(r.minX == 0 && r.minY == 0) else { return false }
+            if let area, !area.contains(CGPoint(x: r.minX, y: r.midY)), !area.contains(CGPoint(x: r.maxX, y: r.midY)) {
+                outside = true
+                return false
+            }
+            return true
+        }
         if !afterNewline, caret > 0, let r = bounds(forRange: CFRange(location: caret - 1, length: 1), in: field.element), plausible(r) {
-            return CGRect(x: r.maxX, y: r.minY, width: 0, height: r.height)
+            return (CGRect(x: r.maxX, y: r.minY, width: 0, height: r.height), "range")
         }
         if let r = bounds(forRange: CFRange(location: caret, length: 1), in: field.element), plausible(r) {
-            return CGRect(x: r.minX, y: r.minY, width: 0, height: r.height)
+            return (CGRect(x: r.minX, y: r.minY, width: 0, height: r.height), "range")
         }
         if let r = bounds(forRange: CFRange(location: caret, length: 0), in: field.element), plausible(r) {
-            return CGRect(x: r.minX, y: r.minY, width: 0, height: r.height)
+            return (CGRect(x: r.minX, y: r.minY, width: 0, height: r.height), "range")
         }
         // Chrome, Electron e WebKit spesso non danno i rettangoli per posizione ma sì per "text marker".
         if let marker = copy(field.element, "AXSelectedTextMarkerRange") {
@@ -122,12 +138,12 @@ enum FocusReader {
             if AXUIElementCopyParameterizedAttributeValue(field.element, "AXBoundsForTextMarkerRange" as CFString, marker, &out) == .success,
                let v = out, CFGetTypeID(v) == AXValueGetTypeID() {
                 var rect = CGRect.zero
-                if AXValueGetValue((v as! AXValue), .cgRect, &rect), rect.height > 4, rect.height < 300 {
-                    return CGRect(x: rect.maxX, y: rect.minY, width: 0, height: rect.height)
+                if AXValueGetValue((v as! AXValue), .cgRect, &rect), plausible(rect) {
+                    return (CGRect(x: rect.maxX, y: rect.minY, width: 0, height: rect.height), "marker")
                 }
             }
         }
-        return nil
+        return (nil, outside ? "outside" : "none")
     }
 
     /// La x del margine sinistro della riga del cursore (il primo carattere del paragrafo), coordinate AX: serve a
