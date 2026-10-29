@@ -31,6 +31,12 @@ final class Completer: ObservableObject {
         var shown = 0, acceptedWords = 0, acceptedAll = 0, dismissed = 0, memoryHits = 0, corrections = 0, modelFailures = 0
         /// Suggerimenti di cui hai preso almeno una parola, e abbreviazioni espanse.
         var acceptedSuggestions = 0, expansions = 0
+        /// Per app (bundle id → evento → volte): i suggerimenti mostrati e i motivi per cui non è comparso niente.
+        /// Solo conteggi.
+        var perApp: [String: [String: Int]] = [:]
+        /// Come sono finite le risposte di un modello base (motivo → volte) e quante parole hanno tenuto in tutto.
+        var stops: [String: Int] = [:]
+        var stoppedAnswers = 0, stoppedWords = 0
     }
 
     @Published private(set) var status: Status = .off
@@ -406,13 +412,24 @@ final class Completer: ObservableObject {
         }
     }
 
+    /// Conta un evento per app (un suggerimento mostrato, una rinuncia): in diagnostica si vede dove e perché non
+    /// compare niente.
+    private func tally(_ reason: String, app bundleID: String?) {
+        let app = (bundleID?.isEmpty == false ? bundleID : FocusReader.frontmostApp()?.bundleID) ?? "unknown"
+        stats.perApp[app, default: [:]][reason, default: 0] += 1
+    }
+
     private func produceSuggestion() {
         guard prefs.enabled, monitor.isRunning, !KeyMonitor.secureInputActive else { return }
         let readBegan = Date()
-        guard let field = FocusReader.focusedField(), !field.isSecure, field.selection.length == 0 else { return }
+        guard let field = FocusReader.focusedField() else { tally("no field", app: nil); return }
+        guard !field.isSecure, field.selection.length == 0 else { return }
         guard !prefs.isExcluded(field.bundleID) else { return }
         if ignoreOwnProcess, field.pid == getpid() { return }
-        guard let before = FocusReader.text(before: field, max: TextContext.maxBefore) else { return }
+        guard let before = FocusReader.text(before: field, max: TextContext.maxBefore) else {
+            tally("no text", app: field.bundleID)
+            return
+        }
         // Il testo appena accettato non è ancora tutto nel campo: si riprova tra poco (al più mezzo secondo).
         if let tail = expectedTail {
             if !before.hasSuffix(tail), expectedRetries < 10 {
@@ -430,6 +447,7 @@ final class Completer: ObservableObject {
         if prefs.midLine {
             after = FocusReader.text(after: field, max: TextContext.maxAfter) ?? ""
         } else if let next = FocusReader.text(after: field, max: 2), !next.trimmingCharacters(in: .whitespaces).isEmpty {
+            tally("text after caret", app: field.bundleID)
             return   // c'è testo dopo il cursore e il completamento a metà riga è spento
         }
         let context = TextContext(before: before, after: after, appName: field.appName, bundleID: field.bundleID)
@@ -440,6 +458,7 @@ final class Completer: ObservableObject {
         let language = LanguageGuess.code(for: before)
         // La parola a metà sembra già sbagliata: allungarla non aiuta.
         if prefs.hideOnTypo, !context.partialWord.isEmpty, SpellGuard.looksMistyped(context.partialWord, language: language) {
+            tally("typo", app: field.bundleID)
             return
         }
         self.field = field
@@ -456,13 +475,16 @@ final class Completer: ObservableObject {
         // Gemma: inizio del testo ancorato, così llama.cpp riusa il prompt già elaborato (Models.swift, anchored).
         let limited = engine.kind == .gemma ? context.anchored(caret: field.caret, max: engine.contextLimit)
                                             : context.limited(to: engine.contextLimit)
-        let window = windowContext(field: field, before: limited.before)
+        // Un modello base continua il testo e basta (Prompting.rawPrompt): schermo, appunti e testi tuoi non servono,
+        // e non si leggono.
+        let baseModel = (engine as? LlamaEngine)?.rawCompletion == true
+        let window: (title: String?, text: String?) = baseModel ? (nil, nil) : windowContext(field: field, before: limited.before)
         var draft = CompletionRequest(context: limited, length: prefs.length,
                                       language: language, instructions: prefs.instructions,
                                       appInstructions: prefs.instruction(forApp: field.bundleID),
-                                      clipboard: clipboardIfAllowed(),
+                                      clipboard: baseModel ? nil : clipboardIfAllowed(),
                                       screen: window.text,
-                                      ownWriting: ownWritingFor(field: field, before: before),
+                                      ownWriting: baseModel ? [] : ownWritingFor(field: field, before: before),
                                       wordLimit: prefs.maxWords)
         draft.windowTitle = window.title
         let request = draft
@@ -488,6 +510,12 @@ final class Completer: ObservableObject {
                 self.recordResponseTime(elapsed)
                 self.recordLatency(Latency(readMs: readMs, firstMs: self.firstPieceMs ?? elapsed * 1000, totalMs: elapsed * 1000,
                                            timings: (engine as? LlamaEngine)?.lastTimings))
+                if let stop = (engine as? LlamaEngine)?.lastStop {
+                    self.stats.stops[stop.reason, default: 0] += 1
+                    self.stats.stoppedAnswers += 1
+                    self.stats.stoppedWords += stop.words
+                    if stop.words == 0 { self.tally("model unsure", app: field.bundleID) }
+                }
                 self.finishStream(raw, request: request, field: field, context: context, source: source)
             case .failure(let error):
                 self.stats.modelFailures += 1
@@ -668,6 +696,7 @@ final class Completer: ObservableObject {
         cutShort = false
         stats.shown += 1
         let caret = FocusReader.caretBounds(field, afterNewline: context.before.last?.isNewline == true)
+        tally(caret == nil ? "no caret" : "shown", app: field.bundleID)
         ghostCaret = caret
         ghostFont = caret == nil ? nil : FocusReader.font(field)
         ghostLineStart = caret == nil ? nil : FocusReader.lineStartX(field, before: context.before)

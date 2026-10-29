@@ -29,6 +29,12 @@ struct LlamaTimings: Equatable, Sendable {
     }
 }
 
+/// Come è finita l'ultima risposta di un modello base: perché si è fermata e quante parole ha tenuto. Solo numeri.
+struct LlamaStop: Equatable, Sendable {
+    var reason: String
+    var words: Int
+}
+
 final class LlamaEngine: CompletionEngine, @unchecked Sendable {
     let kind = EngineKind.gemma
     let displayName: String
@@ -45,8 +51,11 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
 
     private let lock = NSLock()
     private var timings: LlamaTimings?
+    private var stopped: LlamaStop?
     /// I tempi dell'ultima risposta arrivata fino in fondo, se il server li ha dati.
     var lastTimings: LlamaTimings? { lock.withLock { timings } }
+    /// Come è finita l'ultima risposta (solo modelli base).
+    var lastStop: LlamaStop? { lock.withLock { stopped } }
     private func note(_ chunk: [String: Any]) {
         guard let t = LlamaTimings(chunk) else { return }
         lock.withLock { timings = t }
@@ -60,7 +69,7 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
     }
 
     func complete(_ request: CompletionRequest, partial: @escaping @Sendable (String) -> Void) async throws -> String {
-        lock.withLock { timings = nil }
+        lock.withLock { timings = nil; stopped = nil }
         if rawCompletion { return try await completeRaw(request, partial: partial) }
         let body = Self.body(model: model, system: Prompting.completionInstructions(request),
                              user: Prompting.completionPrompt(request), maxTokens: request.maxTokens,
@@ -90,9 +99,10 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
         object["n_predict"] = request.maxTokens
         // La parola più probabile, sempre: suggerimenti stabili, e la probabilità di ogni token per decidere dove
         // fermarsi (ConfidenceStop). Niente stop a "\n": dopo una frase finita il modello va spesso a capo e il seguito
-        // è la riga dopo (Prompting.cleanCompletion la prende); ci si ferma a fine riga, sotto.
+        // è la riga dopo (Prompting.cleanCompletion la prende); ci si ferma a fine riga, sotto. Niente penalità sulle
+        // ripetizioni: in italiano colpiva proprio "di", "che", "la", e il seguito diventava innaturale.
         object["temperature"] = 0
-        object["repeat_penalty"] = 1.1
+        object["repeat_penalty"] = 1.0
         object["n_probs"] = 1
         object["cache_prompt"] = true
         object["stream"] = true
@@ -113,7 +123,8 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
             guard let chunk = Self.parse(payload) else { continue }
             note(chunk)
             if let piece = chunk["content"] as? String, !piece.isEmpty {
-                if stop.add(piece, probability: Self.probability(chunk)) { break }
+                let logprob = Self.logprob(chunk)
+                if stop.add(piece, logprob: logprob?.sum, tokenCount: logprob?.tokens ?? 1) { break }
                 // Si mostra solo quello di cui il modello è già sicuro: niente parole che compaiono e spariscono.
                 if !stop.confident.isEmpty { partial(stop.confident) }
                 // Finita la riga (dopo un eventuale a capo iniziale), il seguito è completo.
@@ -124,22 +135,25 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
                 break
             }
         }
-        return stop.result(natural: natural)
+        let result = stop.result(natural: natural)
+        let ended = LlamaStop(reason: stop.reason?.rawValue ?? "unknown", words: TextTokens.words(withLeadingSpace: result).count)
+        lock.withLock { stopped = ended }
+        return result
     }
 
-    /// La probabilità del pezzo (il prodotto di quelle dei suoi token), da "completion_probabilities" di llama-server:
-    /// "logprob" nelle versioni nuove, "prob" in quelle vecchie. nil se il server non la dà.
-    static func probability(_ chunk: [String: Any]) -> Double? {
+    /// Il logprob del pezzo (la somma di quelli dei suoi token) e quanti token sono, da "completion_probabilities" di
+    /// llama-server: "logprob" nelle versioni nuove, "prob" in quelle vecchie. nil se il server non lo dà.
+    static func logprob(_ chunk: [String: Any]) -> (sum: Double, tokens: Int)? {
         guard let tokens = chunk["completion_probabilities"] as? [[String: Any]], !tokens.isEmpty else { return nil }
-        var product = 1.0
+        var sum = 0.0
         for token in tokens {
-            if let logprob = (token["logprob"] as? NSNumber)?.doubleValue { product *= exp(logprob) }
-            else if let prob = (token["prob"] as? NSNumber)?.doubleValue { product *= prob }
+            if let logprob = (token["logprob"] as? NSNumber)?.doubleValue { sum += logprob }
+            else if let prob = (token["prob"] as? NSNumber)?.doubleValue { sum += log(Swift.max(prob, 1e-6)) }
             else if let probs = token["probs"] as? [[String: Any]], let first = probs.first,
-                    let prob = (first["prob"] as? NSNumber)?.doubleValue { product *= prob }
+                    let prob = (first["prob"] as? NSNumber)?.doubleValue { sum += log(Swift.max(prob, 1e-6)) }
             else { return nil }
         }
-        return product
+        return (sum, tokens.count)
     }
 
     func rewrite(_ text: String, instruction: String, language: String?) async throws -> String {

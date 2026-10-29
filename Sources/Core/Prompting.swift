@@ -72,36 +72,13 @@ enum Prompting {
     /// Caratteri al massimo del testo dello schermo nel prompt.
     static let maxScreen = 800
 
-    /// Il prompt per un modello base, che non segue istruzioni ma continua un documento: un'intestazione con le tue
-    /// istruzioni, i tuoi scritti, lo schermo e gli appunti, e poi il testo da continuare. L'intestazione cambia di
-    /// rado, quindi resta nella cache del prompt; senza niente da dire, il prompt è il testo e basta.
+    /// Il prompt per un modello base, che non segue istruzioni ma continua un documento: il testo prima del cursore e
+    /// basta. Fino alla 0.3.0 c'era un'intestazione con istruzioni, testi tuoi, schermo e appunti: un modello da 1B la
+    /// prendeva per il documento da continuare (scriveva "---", etichette, pezzi di pulsanti), le probabilità si
+    /// abbassavano e i suggerimenti si fermavano alla prima parola. E cambiando prima del testo rompeva la cache.
+    /// Così il prompt cresce solo in coda e llama.cpp lo riprende dalla cache a ogni tasto.
     static func rawPrompt(_ r: CompletionRequest) -> String {
-        var header: [String] = []
-        let own = r.instructions.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !own.isEmpty { header.append("About the writer: \(own)") }
-        let forApp = r.appInstructions.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !forApp.isEmpty { header.append("Writing in \(r.context.appName.isEmpty ? "this app" : r.context.appName): \(forApp)") }
-        for piece in r.ownWriting { header.append("Earlier text by the same writer:\n\(piece)") }
-        // L'app e la finestra dicono che cosa si sta scrivendo (una risposta a una mail, un messaggio in una chat), il
-        // testo della finestra il "di che cosa": un modello base lo usa se lo vede come la conversazione a cui si risponde.
-        if let title = r.windowTitle {
-            let app = r.context.appName.isEmpty ? "" : "\(r.context.appName): "
-            header.append("\(app)\(String(title.prefix(120)))")
-        }
-        if let screen = r.screen, !screen.isEmpty { header.append("In the window (what the writer is replying to):\n\(String(screen.prefix(maxScreen)))") }
-        // Un modello base copia quello che vede: dagli appunti solo testo scritto, non codici, link o colonne di numeri.
-        if let clip = r.clipboard, isProse(clip) { header.append("Clipboard:\n\(String(clip.prefix(500)))") }
-        guard !header.isEmpty else { return r.context.before }
-        return header.joined(separator: "\n\n") + "\n\n---\nThe writer's text:\n" + r.context.before
-    }
-
-    /// Almeno quattro parole e soprattutto lettere.
-    static func isProse(_ text: String) -> Bool {
-        let sample = text.prefix(500)
-        let letters = sample.filter { $0.isLetter }.count
-        let visible = sample.filter { !$0.isWhitespace }.count
-        let words = sample.split(whereSeparator: { $0.isWhitespace }).filter { $0.contains(where: { $0.isLetter }) }.count
-        return words >= 4 && visible > 0 && Double(letters) / Double(visible) >= 0.7
+        r.context.before
     }
 
     private static let labels = ["Continuation:", "Completion:", "Output:", "Text:"]
