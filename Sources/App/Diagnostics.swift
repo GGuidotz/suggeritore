@@ -173,6 +173,7 @@ enum DiagnosticsReport {
             let reasons = s.stops.sorted { $0.value > $1.value }.map { "\($0.key) \($0.value)" }.joined(separator: ", ")
             let average = Double(s.stoppedWords) / Double(s.stoppedAnswers)
             row("Model stops", "\(reasons); \(String(format: "%.1f", average)) words on average")
+            row("Personal model", "\(completer.personalSummary), \(s.personalPicks) suggestions started from your words")
         }
         // Per app: suggerimenti mostrati e rinunce (nessun campo, niente testo, testo dopo il cursore, niente cursore,
         // modello incerto). Solo bundle id e conteggi, le 12 app con più eventi.

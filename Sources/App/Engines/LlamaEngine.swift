@@ -33,6 +33,8 @@ struct LlamaTimings: Equatable, Sendable {
 struct LlamaStop: Equatable, Sendable {
     var reason: String
     var words: Int
+    /// Il seguito è partito da una parola del modello personale.
+    var personal = false
 }
 
 final class LlamaEngine: CompletionEngine, @unchecked Sendable {
@@ -94,8 +96,15 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
 
     /// Modello base: il prompt è il testo stesso, il modello lo continua. Si ferma a fine riga.
     private func completeRaw(_ request: CompletionRequest, partial: @escaping @Sendable (String) -> Void) async throws -> String {
+        let prompt = Prompting.rawPrompt(request)
+        // Il modello personale: se una parola tua batte quella che Gemma sceglierebbe, il seguito parte da lì.
+        var forced: (text: String, score: Double)?
+        if !request.personal.isEmpty, request.personalWeight > 0 {
+            // Se la prova non va, si continua senza: il modello personale è un di più.
+            forced = (try? await personalChoice(request, prompt: prompt)) ?? nil
+        }
         var object: [String: Any] = [:]
-        object["prompt"] = Prompting.rawPrompt(request)
+        object["prompt"] = prompt + (forced?.text ?? "")
         object["n_predict"] = request.maxTokens
         // La parola più probabile, sempre: suggerimenti stabili, e la probabilità di ogni token per decidere dove
         // fermarsi (ConfidenceStop). Niente stop a "\n": dopo una frase finita il modello va spesso a capo e il seguito
@@ -114,6 +123,7 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
         let (bytes, response) = try await LocalHTTP.session.bytes(for: urlRequest)
         try Self.check(response)
         var stop = ConfidenceStop(length: request.length, maxWords: request.maxWords)
+        if let forced { _ = stop.add(forced.text, logprob: log(Swift.max(forced.score, 0.01)), tokenCount: 1) }
         let markupAllowed = request.context.before.contains("<")
         var natural = false
         for try await line in bytes.lines {
@@ -142,9 +152,73 @@ final class LlamaEngine: CompletionEngine, @unchecked Sendable {
             }
         }
         let result = stop.result(natural: natural)
-        let ended = LlamaStop(reason: stop.reason?.rawValue ?? "unknown", words: TextTokens.words(withLeadingSpace: result).count)
+        let ended = LlamaStop(reason: stop.reason?.rawValue ?? "unknown", words: TextTokens.words(withLeadingSpace: result).count,
+                              personal: forced != nil)
         lock.withLock { stopped = ended }
         return result
+    }
+
+    /// Una richiesta da un token con le 10 alternative più probabili: se una parola del modello personale, pesata
+    /// con `personalWeight`, batte quella che Gemma sceglierebbe, la si restituisce (con lo spazio giusto davanti, o
+    /// senza l'inizio già scritto se si è a metà parola) e il suo punteggio. nil se vince Gemma. Costa una richiesta
+    /// in più, quasi tutta dalla cache (pochi millisecondi).
+    private func personalChoice(_ request: CompletionRequest, prompt: String) async throws -> (text: String, score: Double)? {
+        let before = request.context.before
+        let partial = request.context.partialWord
+        func target(_ word: String) -> String? {
+            if !partial.isEmpty {
+                guard word.count > partial.count else { return nil }
+                return String(word.dropFirst(partial.count))
+            }
+            guard let last = before.last else { return nil }
+            return last.isWhitespace ? word : " " + word
+        }
+        var object: [String: Any] = [:]
+        object["prompt"] = prompt
+        object["n_predict"] = 1
+        object["temperature"] = 0
+        object["n_probs"] = 10
+        object["cache_prompt"] = true
+        object["stream"] = false
+        var urlRequest = URLRequest(url: baseURL.appendingPathComponent("completion"))
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.timeoutInterval = 5
+        urlRequest.httpBody = (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
+        let (data, response) = try await LocalHTTP.session.data(for: urlRequest)
+        try Self.check(response)
+        guard let chunk = Self.parse(String(decoding: data, as: UTF8.self)) else { return nil }
+        let top = Self.alternatives(chunk)
+        guard let greedy = top.first else { return nil }
+        let weight = Swift.min(Swift.max(request.personalWeight, 0), 1)
+        var best: (text: String, score: Double)?
+        for candidate in request.personal {
+            guard let text = target(candidate.word) else { continue }
+            // Gemma va già da quella parte: niente da cambiare.
+            if text.hasPrefix(greedy.token) || greedy.token.hasPrefix(text) { return nil }
+            let model = top.filter { !$0.token.trimmingCharacters(in: .whitespaces).isEmpty && (text.hasPrefix($0.token) || $0.token.hasPrefix(text)) }
+                .map { $0.probability }.max() ?? 0
+            // Una parola che Gemma non mette nemmeno tra le prime dieci passa solo se nei tuoi testi è quasi sicura.
+            if model == 0, candidate.probability < 0.7 { continue }
+            let score = (1 - weight) * model + weight * candidate.probability
+            if score > (best?.score ?? 0) { best = (text, score) }
+        }
+        guard let best, best.score > (1 - weight) * greedy.probability else { return nil }
+        return best
+    }
+
+    /// Le alternative per il primo token di una risposta non a pezzi, le più probabili prima: "top_logprobs" (versioni
+    /// nuove di llama-server), "top_probs" o "probs" (vecchie).
+    static func alternatives(_ chunk: [String: Any]) -> [(token: String, probability: Double)] {
+        guard let tokens = chunk["completion_probabilities"] as? [[String: Any]], let first = tokens.first else { return [] }
+        let list = (first["top_logprobs"] ?? first["top_probs"] ?? first["probs"]) as? [[String: Any]] ?? []
+        var out: [(token: String, probability: Double)] = []
+        for item in list {
+            guard let token = (item["token"] ?? item["tok_str"]) as? String else { continue }
+            if let logprob = (item["logprob"] as? NSNumber)?.doubleValue { out.append((token, exp(logprob))) }
+            else if let prob = (item["prob"] as? NSNumber)?.doubleValue { out.append((token, prob)) }
+        }
+        return out.sorted { $0.probability > $1.probability }
     }
 
     /// Il logprob del pezzo (la somma di quelli dei suoi token) e quanti token sono, da "completion_probabilities" di

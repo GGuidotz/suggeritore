@@ -37,6 +37,8 @@ final class Completer: ObservableObject {
         /// Come sono finite le risposte di un modello base (motivo → volte) e quante parole hanno tenuto in tutto.
         var stops: [String: Int] = [:]
         var stoppedAnswers = 0, stoppedWords = 0
+        /// Seguiti partiti da una parola del modello personale.
+        var personalPicks = 0
     }
 
     @Published private(set) var status: Status = .off
@@ -70,7 +72,10 @@ final class Completer: ObservableObject {
     let screen = ScreenContext()
     let windowText = WindowText()
     /// Il contesto della finestra fermo per campo: cambia di rado, così il prompt resta nella cache di llama.cpp.
-    private var frozenContext: (field: String, title: String?, text: String?, date: Date)?
+    private var frozenContext: (field: String, title: String?, text: String?, quoted: String?, date: Date)?
+    /// Il modello personale (Sources/Core/PersonalModel.swift), costruito dalla cronologia di scrittura e tenuto al passo.
+    private var personal = PersonalModel()
+    private var personalLearned = Set<UUID>()
     let history = TypingHistory()
     /// Il campo in cui si sta scrivendo (per la cronologia) e i tuoi testi scelti per lui: restano gli stessi finché
     /// resti nel campo, così l'inizio del prompt non cambia e resta nella cache.
@@ -491,10 +496,10 @@ final class Completer: ObservableObject {
         // Gemma: inizio del testo ancorato, così llama.cpp riusa il prompt già elaborato (Models.swift, anchored).
         let limited = engine.kind == .gemma ? context.anchored(caret: field.caret, max: engine.contextLimit)
                                             : context.limited(to: engine.contextLimit)
-        // Un modello base continua il testo e basta (Prompting.rawPrompt): schermo, appunti e testi tuoi non servono,
-        // e non si leggono.
+        // Un modello base continua un documento (Prompting.rawPrompt): il contesto della finestra entra come mail citata
+        // o come chat; appunti e testi tuoi interi no, al loro posto il modello personale.
         let baseModel = (engine as? LlamaEngine)?.rawCompletion == true
-        let window: (title: String?, text: String?) = baseModel ? (nil, nil) : windowContext(field: field, before: limited.before)
+        let window = windowContext(field: field, before: limited.before)
         var draft = CompletionRequest(context: limited, length: prefs.length,
                                       language: language, instructions: prefs.instructions,
                                       appInstructions: prefs.instruction(forApp: field.bundleID),
@@ -503,6 +508,11 @@ final class Completer: ObservableObject {
                                       ownWriting: baseModel ? [] : ownWritingFor(field: field, before: before),
                                       wordLimit: prefs.maxWords)
         draft.windowTitle = window.title
+        if baseModel {
+            draft.quoted = window.quoted
+            draft.personal = personalCandidates(before: before)
+            draft.personalWeight = Self.personalWeight(prefs.wordChoice)
+        }
         let request = draft
         let source: SuggestionSource = engine.kind == .gemma ? .gemma : .apple
         let started = Date()
@@ -530,6 +540,7 @@ final class Completer: ObservableObject {
                     self.stats.stops[stop.reason, default: 0] += 1
                     self.stats.stoppedAnswers += 1
                     self.stats.stoppedWords += stop.words
+                    if stop.personal { self.stats.personalPicks += 1 }
                     if stop.words == 0 { self.tally("model unsure", app: field.bundleID) }
                 }
                 self.finishStream(raw, request: request, field: field, context: context, source: source)
@@ -656,13 +667,14 @@ final class Completer: ObservableObject {
     /// Il contesto della finestra in cui scrivi: titolo e testo letti con Accessibilità (Contesto dall'app) e, se
     /// quello è poco, il testo riconosciuto sullo schermo. Resta fermo per lo stesso campo fino a 45 secondi: un
     /// prompt che cambia a ogni richiesta andrebbe rielaborato da capo.
-    private func windowContext(field: FocusedField, before: String) -> (title: String?, text: String?) {
+    private func windowContext(field: FocusedField, before: String) -> (title: String?, text: String?, quoted: String?) {
         let key = Self.key(for: field)
-        if let f = frozenContext, f.field == key, f.text != nil, Date().timeIntervalSince(f.date) < 45 {
-            return (f.title, f.text)
+        if let f = frozenContext, f.field == key, f.text != nil || f.quoted != nil, Date().timeIntervalSince(f.date) < 45 {
+            return (f.title, f.text, f.quoted)
         }
         var title: String?
         var text: String?
+        var quoted: String?
         if prefs.appContext, let snapshot = windowText.context(for: field) {
             title = snapshot.title
             text = Self.withoutTyped(snapshot.text, before: before)
@@ -670,8 +682,44 @@ final class Completer: ObservableObject {
         if (text?.count ?? 0) < 200, let seen = screenIfAllowed(pid: field.pid, before: before), seen.count > (text?.count ?? 0) {
             text = seen
         }
-        frozenContext = (key, title, text, Date())
-        return (title, text)
+        // In una risposta di Mail il messaggio a cui rispondi sta nello stesso campo, sotto il cursore.
+        if prefs.appContext, Prompting.appKind(field.bundleID) == .mail,
+           let below = FocusReader.text(after: field, max: 1500, wholeLines: true) {
+            let trimmed = below.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { quoted = trimmed }
+        }
+        frozenContext = (key, title, text, quoted, Date())
+        return (title, text, quoted)
+    }
+
+    /// Le parole che di solito scrivi in questo punto, secondo il modello personale. Il modello impara dalle voci nuove
+    /// della cronologia (e riparte da capo se ne hai cancellate). Vuoto con "Scelta delle parole" spenta.
+    private func personalCandidates(before: String) -> [PersonalCandidate] {
+        guard prefs.wordChoice > 0, prefs.recordHistory else { return [] }
+        if history.entries.count < personalLearned.count {
+            personal = PersonalModel()
+            personalLearned = []
+        }
+        if history.entries.count != personalLearned.count {
+            for entry in history.entries where !personalLearned.contains(entry.id) {
+                personal.learn(entry.text)
+                personalLearned.insert(entry.id)
+            }
+        }
+        return personal.candidates(before: before)
+    }
+
+    /// Il modello personale in numeri, per la diagnostica.
+    var personalSummary: String { "\(personal.texts) texts, \(personal.vocabulary) words" }
+
+    /// Quanto contano le tue parole rispetto a quelle di Gemma: Leggera, Media, Forte.
+    static func personalWeight(_ wordChoice: Int) -> Double {
+        switch wordChoice {
+        case ..<1: 0
+        case 1: 0.2
+        case 2: 0.35
+        default: 0.5
+        }
     }
 
     /// Il testo della finestra in primo piano riconosciuto sullo schermo. nil se spento, senza permesso o a batteria

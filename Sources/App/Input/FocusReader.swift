@@ -76,8 +76,8 @@ enum FocusReader {
         return String(utf16CodeUnits: Array(units[start..<caret]), count: caret - start)
     }
 
-    /// Il testo dopo il cursore, fino a `max` caratteri e fino a fine riga.
-    static func text(after field: FocusedField, max: Int) -> String? {
+    /// Il testo dopo il cursore, fino a `max` caratteri e fino a fine riga (o tutto, con `wholeLines`).
+    static func text(after field: FocusedField, max: Int, wholeLines: Bool = false) -> String? {
         let end = field.selection.location + field.selection.length
         var raw: String?
         if let total = intValue(field.element, kAXNumberOfCharactersAttribute) {
@@ -92,6 +92,7 @@ enum FocusReader {
             raw = String(utf16CodeUnits: Array(units[end..<stop]), count: stop - end)
         }
         guard let raw else { return nil }
+        if wholeLines { return raw }
         return raw.components(separatedBy: .newlines).first ?? raw
     }
 
