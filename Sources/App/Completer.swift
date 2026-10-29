@@ -315,6 +315,10 @@ final class Completer: ObservableObject {
 
     private func appChanged() {
         frontApp = FocusReader.frontmostApp()
+        // Chrome ed Electron: l'albero Accessibilità del contenuto web si accende solo se lo si chiede.
+        if prefs.enabled, Permissions.accessibility, let app = NSWorkspace.shared.frontmostApplication {
+            WebAccessibility.prime(app)
+        }
         screen.invalidate()
         windowText.invalidate()
         frozenContext = nil

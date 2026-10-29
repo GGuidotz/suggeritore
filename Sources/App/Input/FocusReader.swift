@@ -26,15 +26,27 @@ enum FocusReader {
     // MARK: - Il campo
 
     static func focusedField() -> FocusedField? {
+        // Prima la domanda a tutto il sistema; se non risponde (succede spesso: errore -25204) o dà un elemento senza
+        // cursore, la stessa domanda all'app in primo piano, che di solito risponde subito.
         let system = AXUIElementCreateSystemWide()
-        guard let element = elementValue(system, kAXFocusedUIElementAttribute) else { return nil }
+        var element = elementValue(system, kAXFocusedUIElementAttribute)
+        var selection = element.flatMap { rangeValue($0, kAXSelectedTextRangeAttribute) }
+        if selection == nil, let front = NSWorkspace.shared.frontmostApplication, front.processIdentifier != getpid() {
+            let app = AXUIElementCreateApplication(front.processIdentifier)
+            AXUIElementSetMessagingTimeout(app, 0.1)
+            if let inApp = elementValue(app, kAXFocusedUIElementAttribute),
+               let range = rangeValue(inApp, kAXSelectedTextRangeAttribute) {
+                element = inApp
+                selection = range
+            }
+        }
+        guard let element, let selection else { return nil }
         var pid: pid_t = 0
         AXUIElementGetPid(element, &pid)
         let app = NSRunningApplication(processIdentifier: pid)
         let role = stringValue(element, kAXRoleAttribute) ?? ""
         let subrole = stringValue(element, kAXSubroleAttribute) ?? ""
         let secure = role == "AXSecureTextField" || subrole == "AXSecureTextField"
-        guard let selection = rangeValue(element, kAXSelectedTextRangeAttribute) else { return nil }
         var frame: CGRect?
         if let origin = pointValue(element, kAXPositionAttribute), let size = sizeValue(element, kAXSizeAttribute) {
             frame = CGRect(origin: origin, size: size)

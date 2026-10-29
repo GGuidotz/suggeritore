@@ -11,6 +11,7 @@ Longer, more sensible suggestions with the Cotypist model.
 - **Better length.** A suggestion keeps going while the average per-token probability stays high, instead of multiplying word probabilities: with Italian words split into several pieces it almost always stopped after the first word.
 - **Clean prompt for base models.** Gemma base gets only the text before the cursor: no screen, clipboard, instructions or past writing in front of it, which confused it. The prompt only grows at the end and stays in the cache, so answers are faster. Screen and app context remain for Apple Intelligence and instruction-tuned models.
 - **No repetition penalty.** It pushed the model away from common words and made suggestions sound unnatural.
+- **More apps.** Chrome and Electron apps (Slack, Discord, Notion, VS Code, Obsidian) only build their accessibility tree when someone asks: Type_w/Me now asks when they come to the front, so the caret and text can be read there too. If the system-wide query fails, the field is looked up in the frontmost app.
 - **Per-app diagnostics.** The report shows, app by app, how many suggestions appeared and why none did elsewhere (no field, no text, text after the cursor, no caret, model unsure), and how model answers stop. Counts only.
 
 ## 0.3.0 · 2026-10-28

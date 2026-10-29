@@ -47,8 +47,10 @@ struct ConfidenceStop {
         self.maxWords = max(1, maxWords ?? length.maxWords)
     }
 
-    /// La probabilità media per token della prima parola (o del resto della parola in corso).
-    static let firstWordFloor = 0.10
+    /// La probabilità media per token della prima parola (o del resto della parola in corso). Le soglie vengono dalle
+    /// prove con Gemma 3 1B base su frasi italiane: con queste i seguiti buoni arrivano a 9-19 parole, e restano fuori
+    /// solo i tiri a indovinare.
+    static let firstWordFloor = 0.06
 
     /// Sotto questa media per token una parola, dalla seconda in poi, è un tiro a indovinare: ci si ferma prima.
     static let wordFloor = 0.03
@@ -57,9 +59,9 @@ struct ConfidenceStop {
     var averageFloor: Double {
         switch length {
         case .word: 0.3
-        case .short: 0.25
-        case .medium: 0.2
-        case .long: 0.15
+        case .short: 0.15
+        case .medium: 0.12
+        case .long: 0.10
         }
     }
 
